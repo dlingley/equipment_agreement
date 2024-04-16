@@ -1,5 +1,5 @@
 # equipment_agreement
-The purpose of this git repo is to demonstrate how to use Alma REST APIs, specifically the User API, to update user data. We accomplish this with a simple web form.
+Demonstrate how to use Alma REST APIs, specifically the User API, to update user data. We accomplish this with a simple web form.
 
 # Requirements
 PHP 7.0+ with both libxml and libcurl extensions enabled.
