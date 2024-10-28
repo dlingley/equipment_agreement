@@ -1,131 +1,288 @@
 <?php
+// Enable error reporting
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+
+// Add these checks before the Logger class:
+if (!function_exists('posix_getpwuid')) {
+    function posix_getpwuid($uid) {
+        return array('name' => 'unknown');
+    }
+}
+
+if (!function_exists('posix_getgrgid')) {
+    function posix_getgrgid($gid) {
+        return array('name' => 'unknown');
+    }
+}
+
+// Logging configuration and helper class
+class Logger {
+    private $logPath;
+    private $fallbackPath;
+    private $initialized = false;
+
+    public function __construct() {
+        // Try multiple possible log locations in order of preference
+        $possiblePaths = [
+            // Application-specific directory (most preferred)
+            dirname(__FILE__) . '/logs/equipment_agreement_debug.log',
+            // Apache logs directory
+            '/var/log/apache2/equipment_agreement_debug.log',
+            // System temp directory
+            sys_get_temp_dir() . '/equipment_agreement_debug.log',
+            // PHP's upload_tmp_dir
+            ini_get('upload_tmp_dir') . '/equipment_agreement_debug.log'
+        ];
+
+        $this->initializeLogging($possiblePaths);
+    }
+
+    private function initializeLogging($possiblePaths) {
+        foreach ($possiblePaths as $path) {
+            $dir = dirname($path);
+            
+            // Try to create directory if it doesn't exist
+            if (!file_exists($dir)) {
+                if (@mkdir($dir, 0755, true)) {
+                    $this->initializeLogFile($path);
+                    break;
+                }
+                continue;
+            }
+            
+            // Directory exists, try to initialize log file
+            if ($this->initializeLogFile($path)) {
+                break;
+            }
+        }
+
+        // If no logging location works, set up error handler
+        if (!$this->initialized) {
+            $this->setupErrorHandler();
+        }
+    }
+
+    private function initializeLogFile($path) {
+        // Check if we can write to the directory
+        if (is_writable(dirname($path))) {
+            // Create log file if it doesn't exist
+            if (!file_exists($path)) {
+                if (@touch($path)) {
+                    chmod($path,0644);
+                }
+            }
+            
+            // Verify we can write to the log file
+            if (is_writable($path)) {
+                $this->logPath = $path;
+                $this->initialized = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function setupErrorHandler() {
+        // Set up error handler for when logging fails
+        set_error_handler(function($errno, $errstr) {
+            if (error_reporting() & $errno) {
+                // Try to log to PHP's error log
+                error_log("Equipment Agreement Error: $errstr");
+                
+                // If in debug mode, display the error
+                if (isset($_GET['debug']) && $_GET['debug'] == '1') {
+                    echo "Logging Error: $errstr\n";
+                }
+            }
+            return true;
+        });
+    }
+
+    public function log($message, $type = 'INFO') {
+        $date = date('Y-m-d H:i:s');
+        $logMessage = "[$date] [$type] $message" . PHP_EOL;
+        
+        if ($this->initialized) {
+            // Try to write to our log file
+            if (@error_log($logMessage, 3, $this->logPath)) {
+                return true;
+            }
+        }
+        
+        // Fallback to PHP's error_log
+        error_log("Equipment Agreement: $message");
+        return false;
+    }
+
+    public function getLogPath() {
+        return $this->initialized ? $this->logPath : null;
+    }
+
+    public function isInitialized() {
+        return $this->initialized;
+    }
+}
+
+// Initialize logger
+$logger = new Logger();
+
+// Replace the existing debugLog function with this new version
+function debugLog($message, $type = 'INFO') {
+    global $logger;
+    $logger->log($message, $type);
+}
+
+// Add logging status to debug information
+function getLoggingStatus() {
+    global $logger;
+    return [
+        'Logging Initialized' => $logger->isInitialized() ? 'Yes' : 'No',
+        'Log File Path' => $logger->getLogPath() ?: 'Not set - using fallback',
+        'PHP Error Log Path' => ini_get('error_log'),
+        'Current Script Owner' => posix_getpwuid(posix_geteuid())['name'],
+        'Current Script Group' => posix_getgrgid(posix_getegid())['name'],
+        'Upload Temp Dir' => ini_get('upload_tmp_dir'),
+        'Sys Temp Dir' => sys_get_temp_dir()
+    ];
+}
+
+// Start session for debugging
+session_start();
+
 $message = array();
 $error = false;
 
-// Process form submission
-if ($_POST):
-	// Validate email
-	if (!preg_match("/\w+@(g\.)?domain\.edu/",$_POST["email"])):
-		$error = true;
-		array_push($message,"Invalid email.");
-	endif;
-	// Validate firstname, lastname
-	if (!preg_match("/\D+/",$_POST["firstname"]) OR !preg_match("/\D+/",$_POST["lastname"])):
-		$error = true;
-		array_push($message,"Invalid first or surname.");
-	endif;
-	if (!$error):
-		// Update Patron Data via Alma API
-		pushUserNote($_POST["email"]);
-		
-		// Alternately, copypasta the pushUserNote func. to a separate file and execute in a sub-shell
-		// exec("(php -f /path/to/file.php > /dev/null 2>&1 &)");
-		
-		// Refresh this page after seven seconds
-		header("Refresh: 7");
-	endif;
-endif;
+// Define the $showDebug variable
+$showDebug = false;
 
-// Function to push user note via Alma API
-function pushUserNote($EMAIL) {
-	// Base URL
-	$ALMA_REQ_URL = "https://api-na.hosted.exlibrisgroup.com/almaws/v1/users/";
-	// API KEY
-	$ALMA_API_KEY = "API KEY"; 
-	// GET PARAMETERS
-	$ALMA_GET_PARAM = "?user_id_type=all_unique&view=full&expand=none&apikey=";
-	// PUT PARAMETERS
-	$ALMA_PUT_PARAM = "?user_id_type=all_unique&send_pin_number_letter=false&recalculate_roles=false&apikey=";
-	
-	// Initialize cURL GET
-	$cr = curl_init();
-	$curl_options = array(
-		CURLOPT_URL => sprintf("%s%s%s%s",$ALMA_REQ_URL,$EMAIL,$ALMA_GET_PARAM,$ALMA_API_KEY),
-		CURLOPT_HTTPGET => true,
-		CURLOPT_HTTPHEADER => array("Accept: application/xml"),
-		CURLOPT_RETURNTRANSFER => true,
-		CURLOPT_SSL_VERIFYPEER => false
-	);
-	curl_setopt_array($cr, $curl_options);
-	$response = curl_exec($cr);
-	curl_close($cr);
-
-	$doc = new DOMDocument();
-	$doc->loadXML($response);
-	$xpath = new DOMXpath($doc);
-	
-	// We set the semester year date to the first day before the Fall semester. e.g.: August 13, 2023
-	// You'll want to revise this to align with your Library's equipment agreement policy
-	$semester = "August 13, 2023";
-	
-	// This line looks specifically for "Equipemnt Agreement" and the semester. e.g.: Equipment Agreement valid until August 13, 2023
-	$note_text = $xpath->query("//note_text/text()[contains(.,\"Equipment Agreement\") and contains(.,\"$semester\")]");
-	
-	// If this patron doesn't have an existing note, then we add a <user_note> element to XML response
-	if ($note_text->length == 0) {
-		// Equipment Agreement valid to $semester 
-		$user_notes = $xpath->query("//user_notes")->item(0);
-		$user_notes_domnode = $user_notes->cloneNode();
-		$user_note = new DOMElement("user_note");
-		$user_notes->appendChild($user_note);
-		$user_note->setAttribute("segment_type","External");
-		$user_note->appendChild(new DOMElement("note_type","CIRCULATION"));
-		
-		// Change the note text to align with your Library's equipment agreement policy
-		$user_note->appendChild(new DOMElement("note_text","Equipment Agreement valid to $semester."));
-		$user_note->appendChild(new DOMElement("user_viewable","true"));
-		$user_note->appendChild(new DOMElement("popup_note","true"));
-	
-		// Initialize cURL PUT
-		$cr = curl_init();
-		$curl_options = array(
-			CURLOPT_URL => sprintf("%s%s%s%s",$ALMA_REQ_URL,$EMAIL,$ALMA_PUT_PARAM,$ALMA_API_KEY),
-			CURLOPT_CUSTOMREQUEST => "PUT",
-			CURLOPT_POSTFIELDS => $doc->saveXML(),
-			CURLOPT_HTTPHEADER => array("Content-Type: application/xml", "Accept: application/xml"),
-			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_SSL_VERIFYPEER => false
-		);
-		curl_setopt_array($cr, $curl_options);
-		$response = curl_exec($cr);
-		curl_close($cr);
-	}
+// Check for error message in query string
+if (isset($_GET['error'])) {
+    $error = true;
+    $errorMsg = htmlspecialchars($_GET['error']);
+    array_push($message, $errorMsg);
+    debugLog('Error encountered: ' . $errorMsg, 'ERROR');
 }
+
+// Debug POST data
+if ($_POST) {
+    debugLog('Form submitted with POST data: ' . print_r($_POST, true));
+}
+
+// Process form submission
+if ($_POST && isset($_POST['purdueid'])):
+    // Validate Purdue ID
+    if (empty($_POST["purdueid"])):
+        $error = true;
+        $errorMsg = "Purdue ID is required.";
+        debugLog($errorMsg, 'ERROR');
+        array_push($message, "Purdue ID is required.");
+    else:
+        // Store Purdue ID in session for the next step
+        $_SESSION['purdueid'] = $_POST["purdueid"];
+        
+        // Redirect to confirmation page
+        header("Location: confirm.php");
+        exit();
+    endif;
+endif;
 ?>
+
 <!DOCTYPE html>
-<HTML lang="en-US">
-<HEAD>
-	<META http-equiv="x-ua-compatible" content="IE=edge">
-	<META name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
-	<META http-equiv="content-type" content="text/html; charset=utf-8">
-	<TITLE>Equipment Agreement</TITLE>
-</HEAD>
-<BODY>
-<?php if ($_POST AND !$error): ?>
-	</i>Your Equipment Agreement has been submitted.</i>
-<?php elseif ($_POST AND $error): ?>
-	<b>Please correct the following errors:</b>
-	<ul>
-		<?php foreach ($message AS $msg) { print "<li>$msg</li>"; } ?>
-	</ul>
-<?php else: ?>
-	<FORM METHOD="POST" ID="agreement_form">
-		<DIV ID="agreement_content">
-			<!-- The language for the equipment agreement goes here. -->
-		</DIV>
-		<DIV ID="agreement_fields">
-<?php foreach (array("firstname","lastname") AS $key): ?>
-			<LABEL><?php print preg_match("/_/",$key) ? strtoupper(str_replace("_"," ", $key)) : ucfirst($key); ?>:</LABEL>
-			<INPUT CLASS="agreement" TYPE="<?php print preg_match("/phone/", $key) ? "tel" : "text"?>" NAME="<?php print $key; ?>" VALUE="<?php !empty($_GET[$key]) AND print $_GET[$key] OR !empty($_GET[$key]) AND print $_GET[$key]; ?>" REQUIRED/>
-			<BR/>
-<?php endforeach; ?>
-			<LABEL>Email:</LABEL>
-			<INPUT CLASS="agreement" TYPE="email" NAME="email" VALUE="<?php !empty($_GET["email"]) AND print $_GET["email"]; ?>" PATTERN=".+@domain.edu" REQUIRED/>
-			<BR/>
-			<INPUT TYPE="submit" NAME="submit" VALUE="Submit" CLASS="inline"/>
-			<INPUT TYPE="reset" NAME="cancel" VALUE="Cancel" CLASS="inline" ONCLICK="window.location=''; return false;"/>
-		</DIV>
-	</FORM>
-<?php endif; ?>
-</BODY>
-</HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="x-ua-compatible" content="IE=edge">
+    <title>Purdue Libraries Equipment Agreement</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="header">
+        <img src="LSIS_H-Full-RGB_1.jpg" alt="Purdue Libraries Logo" class="logo">
+        <h1>Purdue Libraries Equipment Agreement</h1>
+    </div>
+
+    <?php if ($_POST AND $error): ?>
+        <div class="error-message">
+            <b>Please correct the following errors:</b>
+            <ul>
+                <?php foreach ($message as $msg) { print "<li>$msg</li>"; } ?>
+            </ul>
+        </div>
+    <?php elseif ($error): ?>
+        <div class="error-message">
+            <b>Error:</b>
+            <ul>
+                <?php foreach ($message as $msg) { print "<li>$msg</li>"; } ?>
+            </ul>
+        </div>
+    <?php endif; ?>
+    
+    <form method="POST" id="agreement_form">
+        <div class="important-notice">
+            Read this document before signing. This legally binding contract must be signed prior to equipment checkout and is valid until August 17, 2025.
+        </div>
+
+        <div id="agreement_content">
+            <p>I have provided my current Purdue University Identification Number, Purdue email address, full name, and phone number so Purdue Libraries staff may contact me regarding the status and/or terms of my equipment request. I am solely responsible for keeping Purdue Libraries informed with my accurate contact information.</p>
+
+            <p>I acknowledge that it is my responsibility to check the condition of the equipment I am receiving at the time of checkout.</p>
+
+            <p>Purdue Libraries staff documents the condition of the equipment upon both checkout and return, and I will be financially responsible for any cosmetic wear and tear or other damage, loss, or theft that occurs while the equipment is on loan to me. I will immediately report any damage, loss, or theft of the borrowed equipment during my loan period to Purdue Libraries. In the event that the borrowed equipment is stolen, I am required to immediately notify library staff and provide a police report detailing the theft of the equipment.</p>
+
+            <p>I understand that when returning any borrowed equipment, staff will check the condition of all items while I am present. I acknowledge that if I do not remain at the service point during this process, I will accept responsibility for any damage that is deemed to have occurred while on loan to me.</p>
+
+            <p>I acknowledge and agree that I shall not have equipment repaired by an outside source. I understand all repairs of university equipment must be handled by Purdue's Information Technology at Purdue (ITaP). Any violation will warrant repair charges not to exceed a replacement charge.</p>
+
+            <p>I acknowledge and understand that any and all equipment borrowed must be returned to the appropriate service point in the library by the date and time noted in the email receipt that was sent to my Purdue email address. Failure to act in accordance with the terms within the receipt may result in the forfeiture of borrowing privileges, and/or replacement fees based on the current replacement cost of the borrowed item.</p>
+
+            <p>I agree that I will not install, modify, or copy software on borrowed equipment and will not remove "Library Use Only" equipment from the library. I further understand that my violation may warrant an intervention by Purdue University Police Department to retrieve my borrowed equipment in addition to any fines and forfeiture of borrowing privileges that may be levied against me.</p>
+
+            <p>I hereby release Purdue University from liability and responsibility whatsoever for any claim of action that I, my estate, heirs, executors, or assigns may have for any personal injury, property damage, or wrongful death arising from the activities of my voluntary equipment request and agree to indemnify and hold harmless Purdue University from any demands, loss, liability, claims, or expenses (including attorneys' fees), made against the University by any third party, arising out of or in connection with my borrowing equipment from the University.</p>
+
+            <p class="bold">I understand this is a legally binding agreement and specifically agree to the terms herein as a condition for using the equipment.</p>
+        </div>
+
+        <div class="form-section">
+            <div class="form-group">
+                <label for="purdueid">Purdue ID:</label>
+                <input type="text" id="purdueid" name="purdueid" required>
+            </div>
+            <div class="button-group">
+                <input type="submit" name="submit" value="Submit">
+                <input type="reset" name="cancel" value="Cancel" onclick="window.location=''; return false;">
+            </div>
+        </div>
+    </form>
+    
+    <?php if ($showDebug): ?>
+    <div class="debug-panel">
+        <h2>Debug Information</h2>
+        <pre>
+<?php
+    echo "Debug Information:\n";
+    foreach (getLoggingStatus() as $key => $value) {
+        echo htmlspecialchars("$key: $value") . "\n";
+    }
+    
+    echo "\nPOST Data:\n";
+    echo htmlspecialchars(print_r($_POST, true));
+    
+    echo "\nSession Data:\n";
+    echo htmlspecialchars(print_r($_SESSION, true));
+    
+    if (file_exists('equipment_agreement_debug.log')) {
+        echo "\nRecent Log Entries:\n";
+        $logEntries = array_slice(file('equipment_agreement_debug.log'), -10);
+        foreach ($logEntries as $entry) {
+            echo htmlspecialchars($entry);
+        }
+    }
+?>
+        </pre>
+    </div>
+    <?php endif; ?>
+</body>
+</html>
