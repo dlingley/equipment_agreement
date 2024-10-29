@@ -1,103 +1,228 @@
-/* styles.css */
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+}
 
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-            color: #333;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .logo {
-            max-width: 600px;
-            margin-bottom: 20px;
-        }
-        h1 {
-            color: #C28E0E;
-            font-size: 24px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .important-notice {
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 15px;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .error-message {
-            color: #721c24;
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        .success-message {
-            color: #155724;
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        .form-section {
-            margin-top: 30px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: inline-block;
-            width: 100px;
-            font-weight: bold;
-        }
-        .form-group input {
-            width: 300px;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .button-group {
-            margin-top: 20px;
-        }
-        .button-group input[type="submit"],
-        .button-group input[type="reset"] {
-            padding: 10px 20px;
-            margin-right: 10px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .button-group input[type="submit"] {
-            background-color: #C28E0E;
-            color: white;
-        }
-        .button-group input[type="reset"] {
-            background-color: #6f6f6f;
-            color: white;
-        }
-		/* Add debug panel styling */
-        .debug-panel {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-        }
-        .debug-panel h2 {
-            color: #721c24;
-            margin-top: 0;
-        }
-        .debug-panel pre {
-            background-color: #fff;
-            padding: 10px;
-            border-radius: 4px;
-            overflow-x: auto;
-		}
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+    position: relative;
+}
+
+.logo {
+    max-width: 300px;
+    height: auto;
+    margin-bottom: 20px;
+}
+
+.header-buttons {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.error-message {
+    background-color: #ffebee;
+    border: 1px solid #ef9a9a;
+    color: #c62828;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.important-notice {
+    background-color: #fff3e0;
+    border: 1px solid #ffe0b2;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+#agreement_content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.form-section {
+    background-color: white;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.button-group {
+    text-align: center;
+    margin-top: 20px;
+}
+
+input[type="submit"], input[type="reset"], .button {
+    background-color: #c28e0e;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 0;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+input[type="submit"]:hover, input[type="reset"]:hover, .button:hover {
+    background-color: #a17a0c;
+}
+
+.bold {
+    font-weight: bold;
+}
+
+/* Debug panel styles */
+.debug-panel {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.debug-panel pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Login form specific styles */
+.login-form {
+    max-width: 400px;
+    margin: 0 auto;
+    background-color: white;
+    padding: 30px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Agreement note styles */
+.agreement-note {
+    background-color: white;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.thank-you-message {
+    text-align: center;
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    border-radius: 4px;
+}
+
+.thank-you-message h3 {
+    color: #2e7d32;
+    margin-bottom: 10px;
+}
+
+/* Graph and usage report styles */
+.graph-container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.usage-report {
+    background-color: white;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.usage-report table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.usage-report th,
+.usage-report td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.usage-report th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+.usage-report tr:hover {
+    background-color: #f9f9f9;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    .logo {
+        max-width: 200px;
+    }
+    
+    .form-section {
+        padding: 15px;
+    }
+
+    .graph-container,
+    .usage-report {
+        padding: 10px;
+    }
+
+    .usage-report th,
+    .usage-report td {
+        padding: 8px;
+    }
+
+    .header-buttons {
+        position: static;
+        margin-top: 20px;
+        justify-content: center;
+    }
+}

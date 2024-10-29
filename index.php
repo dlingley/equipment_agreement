@@ -1,4 +1,13 @@
 <?php
+// Start session first
+session_start();
+
+// Check if user is logged in, if not redirect to login page
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header('Location: login.php');
+    exit();
+}
+
 // Enable error reporting
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -148,9 +157,6 @@ function getLoggingStatus() {
     ];
 }
 
-// Start session for debugging
-session_start();
-
 $message = array();
 $error = false;
 
@@ -234,7 +240,7 @@ endif;
 
             <p>I understand that when returning any borrowed equipment, staff will check the condition of all items while I am present. I acknowledge that if I do not remain at the service point during this process, I will accept responsibility for any damage that is deemed to have occurred while on loan to me.</p>
 
-            <p>I acknowledge and agree that I shall not have equipment repaired by an outside source. I understand all repairs of university equipment must be handled by Purdue's Information Technology at Purdue (ITaP). Any violation will warrant repair charges not to exceed a replacement charge.</p>
+            <p>I acknowledge and agree that I shall not have equipment repaired by an outside source. I understand all repairs of university equipment must be handled by Purdue Libraries Knowledge Lab. Any violation will warrant repair charges not to exceed a replacement charge.</p>
 
             <p>I acknowledge and understand that any and all equipment borrowed must be returned to the appropriate service point in the library by the date and time noted in the email receipt that was sent to my Purdue email address. Failure to act in accordance with the terms within the receipt may result in the forfeiture of borrowing privileges, and/or replacement fees based on the current replacement cost of the borrowed item.</p>
 
