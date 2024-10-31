@@ -47,15 +47,18 @@ class Logger {
     private $logPath;
     private $fallbackPath;
     private $initialized = false;
+    private $config;  // Add config property
 
     /**
      * Constructor: Sets up the logging system when a new Logger is created
      * Tries different locations to store log files based on system permissions
      */
-    public function __construct() {
+    public function __construct($config) {  // Add config parameter
+        $this->config = $config;  // Store config
+        
         // Define possible locations for log files in order of preference
         $possiblePaths = [
-            $config['LOG_PATHS']['DEBUG'],
+            $this->config['LOG_PATHS']['DEBUG'],  // Use config from class property
             '/var/log/apache2/equipment_agreement_debug.log',
             sys_get_temp_dir() . '/equipment_agreement_debug.log',
             ini_get('upload_tmp_dir') . '/equipment_agreement_debug.log'
@@ -164,7 +167,7 @@ class Logger {
 
 // ===== Initialize Logging =====
 // Create a new logger instance to handle application logging
-$logger = new Logger();
+$logger = new Logger($config);    // Pass config to Logger constructor
 
 /**
  * Helper function to write debug messages to the log

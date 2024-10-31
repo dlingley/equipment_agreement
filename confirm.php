@@ -32,8 +32,11 @@ $purdueId = $_SESSION['purdueid'];
  * Writes debug messages to a log file
  * @param string $message The message to log
  * @param string $level The log level (INFO, ERROR, etc.)
+ * @global array $config Application configuration
  */
 function debugLog($message, $level = 'INFO') {
+    global $config; // Add global keyword to access config
+    
     $logFile = $config['LOG_PATHS']['DEBUG'];
     $timestamp = date('Y-m-d H:i:s');
     $logMessage = "[$timestamp] [$level] $message\n";
@@ -51,17 +54,20 @@ function debugLog($message, $level = 'INFO') {
  * @return bool True if email sent successfully, false otherwise
  */
 function sendAgreementEmail($email, $firstName, $lastName, $semester) {
+    global $config; // Add global keyword to access config
+    
     require '../vendor/autoload.php';
-
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-
+    
     try {
         // Configure SMTP server settings
         $mail->isSMTP();
         $mail->Host = $config['SMTP_CONFIG']['HOST'];
         $mail->Port = $config['SMTP_CONFIG']['PORT'];
-        $mail->SMTPAuth = false; // No authentication needed
-        $mail->SMTPSecure = false; // No encryption needed
+        $mail->SMTPAuth = false;
+        $mail->SMTPSecure = false;
+        
+        // Disable SSL verification (for testing purposes only)
         $mail->SMTPOptions = array(
             'ssl' => array(
                 'verify_peer' => false,
@@ -69,11 +75,16 @@ function sendAgreementEmail($email, $firstName, $lastName, $semester) {
                 'allow_self_signed' => true
             )
         );
-
-        // Set email sender and recipient
-        $mail->setFrom($config['SMTP_CONFIG']['FROM_EMAIL']);
+        
+        // Set proper From address with name
+        $mail->setFrom(
+            $config['SMTP_CONFIG']['FROM_EMAIL'],
+            $config['SMTP_CONFIG']['FROM_NAME']
+        );
+        
+        // Set email recipient
         $mail->addAddress($email);
-
+        
         // Compose email content
         $mail->isHTML(false);
         $mail->Subject = "Equipment Agreement Confirmation";
@@ -86,7 +97,6 @@ function sendAgreementEmail($email, $firstName, $lastName, $semester) {
         $message .= "Thank you for using the Knowledge Lab!\n";
         $message .= "Purdue University Libraries";
         $mail->Body = $message;
-
         $mail->send();
         return true;
     } catch (Exception $e) {

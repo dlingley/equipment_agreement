@@ -2,6 +2,9 @@
 // ===== Session Management and Authentication =====
 session_start();
 
+// Load application configuration
+$config = include('config.php');
+
 // Verify user is logged in and has admin privileges
 // If not, redirect to login page for security
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || 
@@ -23,8 +26,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
-// Load application configuration
-$config = include('config.php');
+
 
 // ===== Debug Operations =====
 // Initialize debug message variables
@@ -46,9 +48,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
 
 /**
  * Retrieves all check-in log entries from the CSV file
- * @return array Array of check-in entries with ID, Purdue ID, timestamp, and user group
+ * @param array $config Application configuration
+ * @return array Array of check-in entries
  */
-function getCheckinLogEntries() {
+function getCheckinLogEntries($config) {
+    if (!isset($config['LOG_PATHS']) || !isset($config['LOG_PATHS']['CHECKIN'])) {
+        error_log('Configuration error: LOG_PATHS not properly set');
+        return array();
+    }
+    
     $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     if (!file_exists($checkInLog)) {
         return array();
@@ -74,7 +82,7 @@ function getCheckinLogEntries() {
  * Saves check-in log entries back to the CSV file
  * @param array $entries Array of check-in entries to save
  */
-function saveCheckinLogEntries($entries) {
+function saveCheckinLogEntries($entries, $config) {
     $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     $content = '';
     foreach ($entries as $entry) {
@@ -90,13 +98,13 @@ function saveCheckinLogEntries($entries) {
 // ===== Log Entry Operations =====
 // Handle POST requests for log management (delete, edit entries)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $entries = getCheckinLogEntries();
+    $entries = getCheckinLogEntries($config);
     
     // Handle single entry deletion
     if (isset($_POST['delete']) && isset($_POST['entry_id'])) {
         $id = (int)$_POST['entry_id'];
         unset($entries[$id]);
-        saveCheckinLogEntries(array_values($entries));
+        saveCheckinLogEntries(array_values($entries), $config);
         header('Location: admin.php#log-section');
         exit();
     }
@@ -107,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($selectedIds as $id) {
             unset($entries[(int)$id]);
         }
-        saveCheckinLogEntries(array_values($entries));
+        saveCheckinLogEntries(array_values($entries), $config);
         header('Location: admin.php#log-section');
         exit();
     }
@@ -118,20 +126,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $entries[$id]['purdue_id'] = $_POST['purdue_id'];
         $entries[$id]['timestamp'] = $_POST['timestamp'];
         $entries[$id]['user_group'] = $_POST['user_group'];
-        saveCheckinLogEntries($entries);
+        saveCheckinLogEntries($entries, $config);
         header('Location: admin.php#log-section');
         exit();
     }
 }
 
 // Get current log entries for display
-$logEntries = getCheckinLogEntries();
+$logEntries = getCheckinLogEntries($config);
 
 /**
  * Generates usage report data grouped by month and user group
+ * @param array $config Application configuration
  * @return array Array of usage statistics
  */
-function getUsageReport() {
+function getUsageReport($config) {
     $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     if (!file_exists($checkInLog)) {
         return array();
@@ -167,7 +176,7 @@ function getUsageReport() {
 
 // ===== Usage Report Generation =====
 // Get usage statistics
-$usageReport = getUsageReport();
+$usageReport = getUsageReport($config);
 
 // Process data for the graph visualization
 $months = array_keys($usageReport);
