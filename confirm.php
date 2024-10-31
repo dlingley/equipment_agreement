@@ -34,7 +34,7 @@ $purdueId = $_SESSION['purdueid'];
  * @param string $level The log level (INFO, ERROR, etc.)
  */
 function debugLog($message, $level = 'INFO') {
-    $logFile = 'logs/equipment_agreement_debug.log';
+    $logFile = $config['LOG_PATHS']['DEBUG'];
     $timestamp = date('Y-m-d H:i:s');
     $logMessage = "[$timestamp] [$level] $message\n";
     file_put_contents($logFile, $logMessage, FILE_APPEND);
@@ -58,8 +58,8 @@ function sendAgreementEmail($email, $firstName, $lastName, $semester) {
     try {
         // Configure SMTP server settings
         $mail->isSMTP();
-        $mail->Host = 'libmail.lib.purdue.edu';
-        $mail->Port = 25;
+        $mail->Host = $config['SMTP_CONFIG']['HOST'];
+        $mail->Port = $config['SMTP_CONFIG']['PORT'];
         $mail->SMTPAuth = false; // No authentication needed
         $mail->SMTPSecure = false; // No encryption needed
         $mail->SMTPOptions = array(
@@ -71,7 +71,7 @@ function sendAgreementEmail($email, $firstName, $lastName, $semester) {
         );
 
         // Set email sender and recipient
-        $mail->setFrom('no-reply@lib.purdue.edu');
+        $mail->setFrom($config['SMTP_CONFIG']['FROM_EMAIL']);
         $mail->addAddress($email);
 
         // Compose email content
@@ -105,10 +105,10 @@ function sendAgreementEmail($email, $firstName, $lastName, $semester) {
  */
 function pushUserNoteAndCheckAgreement($purdueId, $config) {
     // Define Alma API endpoints and parameters
-    $ALMA_REQ_URL = "https://api-na.hosted.exlibrisgroup.com/almaws/v1/users/";
+    $ALMA_REQ_URL = $config['ALMA_API_CONFIG']['BASE_URL'];
     $ALMA_API_KEY = $config['ALMA_API_KEY'];
-    $ALMA_GET_PARAM = "?user_id_type=all_unique&view=full&expand=none&apikey=";
-    $ALMA_PUT_PARAM = "?user_id_type=all_unique&send_pin_number_letter=false&recalculate_roles=false&apikey=";
+    $ALMA_GET_PARAM = $config['ALMA_API_CONFIG']['GET_PARAMS'] . '&apikey=';
+    $ALMA_PUT_PARAM = $config['ALMA_API_CONFIG']['PUT_PARAMS'] . '&apikey=';
     
     debugLog('Starting API call for Purdue ID: ' . $purdueId);
     

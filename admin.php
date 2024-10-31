@@ -34,7 +34,7 @@ $debugError = '';
 // Handle debug actions (e.g., clearing log files)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
     if ($_POST['debug_action'] === 'clear_log') {
-        $debugLogFile = 'logs/equipment_agreement_debug.log';
+        $debugLogFile = $config['LOG_PATHS']['DEBUG'];
         if (file_exists($debugLogFile)) {
             file_put_contents($debugLogFile, '');
             $debugMessage = 'Debug log cleared successfully';
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
  * @return array Array of check-in entries with ID, Purdue ID, timestamp, and user group
  */
 function getCheckinLogEntries() {
-    $checkInLog = 'logs/checkin_log.csv';
+    $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     if (!file_exists($checkInLog)) {
         return array();
     }
@@ -75,7 +75,7 @@ function getCheckinLogEntries() {
  * @param array $entries Array of check-in entries to save
  */
 function saveCheckinLogEntries($entries) {
-    $checkInLog = 'logs/checkin_log.csv';
+    $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     $content = '';
     foreach ($entries as $entry) {
         $content .= implode(',', [
@@ -132,7 +132,7 @@ $logEntries = getCheckinLogEntries();
  * @return array Array of usage statistics
  */
 function getUsageReport() {
-    $checkInLog = 'logs/checkin_log.csv';
+    $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     if (!file_exists($checkInLog)) {
         return array();
     }

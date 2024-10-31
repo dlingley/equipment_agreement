@@ -55,13 +55,9 @@ class Logger {
     public function __construct() {
         // Define possible locations for log files in order of preference
         $possiblePaths = [
-            // Application-specific directory (most preferred)
-            dirname(__FILE__) . '/logs/equipment_agreement_debug.log',
-            // Apache logs directory
+            $config['LOG_PATHS']['DEBUG'],
             '/var/log/apache2/equipment_agreement_debug.log',
-            // System temp directory
             sys_get_temp_dir() . '/equipment_agreement_debug.log',
-            // PHP's upload_tmp_dir
             ini_get('upload_tmp_dir') . '/equipment_agreement_debug.log'
         ];
 

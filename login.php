@@ -3,6 +3,16 @@
 // Start a new session or resume the existing session
 session_start();
 
+ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
+session_set_cookie_params([
+    'lifetime' => $config['SESSION_CONFIG']['TIMEOUT'],
+    'secure' => $config['SESSION_CONFIG']['SECURE'],
+    'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY']
+]);
+
+<?php
+
+
 // ===== Authentication Check =====
 // If user is already logged in, redirect them to their appropriate dashboard
 // Admins go to admin.php, regular users go to index.php
