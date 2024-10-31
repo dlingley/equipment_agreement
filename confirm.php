@@ -25,22 +25,48 @@ function debugLog($message, $level = 'INFO') {
 }
 
 function sendAgreementEmail($email, $firstName, $lastName, $semester) {
-    $to = $email;
-    $subject = "Equipment Agreement Confirmation";
-    $message = "Dear $firstName $lastName,\n\n";
-    $message .= "This email confirms that you have agreed to the Equipment Agreement valid until $semester.\n\n";
-    $message .= "Agreement Details:\n";
-    $message .= "- You are responsible for any equipment borrowed from the Knowledge Lab\n";
-    $message .= "- Equipment must be returned in the same condition as when borrowed\n";
-    $message .= "- Any damage or loss must be reported immediately\n\n";
-    $message .= "Thank you for using the Knowledge Lab!\n";
-    $message .= "Purdue University Libraries";
+    require '../vendor/autoload.php';
 
-    $headers = "From: noreply@purdue.edu\r\n";
-    $headers .= "Reply-To: noreply@purdue.edu\r\n";
-    $headers .= "X-Mailer: PHP/" . phpversion();
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
-    return mail($to, $subject, $message, $headers);
+    try {
+        // Server settings
+        $mail->isSMTP();
+        $mail->Host = 'libmail.lib.purdue.edu';
+        $mail->Port = 25;
+        $mail->SMTPAuth = false; // No authentication needed since username/password are null
+        $mail->SMTPSecure = false; // No encryption needed
+        $mail->SMTPOptions = array(
+            'ssl' => array(
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
+            )
+        );
+
+        // Recipients
+        $mail->setFrom('no-reply@lib.purdue.edu');
+        $mail->addAddress($email);
+
+        // Content
+        $mail->isHTML(false);
+        $mail->Subject = "Equipment Agreement Confirmation";
+        $message = "Dear $firstName $lastName,\n\n";
+        $message .= "This email confirms that you have agreed to the Equipment Agreement valid until $semester.\n\n";
+        $message .= "Agreement Details:\n";
+        $message .= "- You are responsible for any equipment borrowed from the Knowledge Lab\n";
+        $message .= "- Equipment must be returned in the same condition as when borrowed\n";
+        $message .= "- Any damage or loss must be reported immediately\n\n";
+        $message .= "Thank you for using the Knowledge Lab!\n";
+        $message .= "Purdue University Libraries";
+        $mail->Body = $message;
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        debugLog('Failed to send confirmation email to ' . $email . '. Error: ' . $mail->ErrorInfo, 'ERROR');
+        return false;
+    }
 }
 
 function pushUserNoteAndCheckAgreement($purdueId, $config) {
