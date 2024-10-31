@@ -1,22 +1,38 @@
 <?php
+// ===== Session and Error Handling Setup =====
+// Start the session to maintain user data across pages
 session_start();
+
+// Enable comprehensive error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
+// ===== Authentication Check =====
+// Verify that user has provided a Purdue ID through the previous form
+// If not, redirect back to the index page
 if (!isset($_SESSION['purdueid'])) {
     header("Location: index.php");
     exit();
 }
 
+// ===== Configuration Loading =====
+// Load application configuration settings
 $config = include('config.php');
 
+// Verify that the required API key is present in config
 if (!isset($config['ALMA_API_KEY'])) {
     die('API key not set in config.php.');
 }
 
+// Get Purdue ID from session
 $purdueId = $_SESSION['purdueid'];
 
+/**
+ * Writes debug messages to a log file
+ * @param string $message The message to log
+ * @param string $level The log level (INFO, ERROR, etc.)
+ */
 function debugLog($message, $level = 'INFO') {
     $logFile = 'logs/equipment_agreement_debug.log';
     $timestamp = date('Y-m-d H:i:s');
@@ -24,17 +40,27 @@ function debugLog($message, $level = 'INFO') {
     file_put_contents($logFile, $logMessage, FILE_APPEND);
 }
 
+/**
+ * Sends a confirmation email to the user after agreement is signed
+ * Uses PHPMailer to handle email sending
+ * 
+ * @param string $email User's email address
+ * @param string $firstName User's first name
+ * @param string $lastName User's last name
+ * @param string $semester Current semester end date
+ * @return bool True if email sent successfully, false otherwise
+ */
 function sendAgreementEmail($email, $firstName, $lastName, $semester) {
     require '../vendor/autoload.php';
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
     try {
-        // Server settings
+        // Configure SMTP server settings
         $mail->isSMTP();
         $mail->Host = 'libmail.lib.purdue.edu';
         $mail->Port = 25;
-        $mail->SMTPAuth = false; // No authentication needed since username/password are null
+        $mail->SMTPAuth = false; // No authentication needed
         $mail->SMTPSecure = false; // No encryption needed
         $mail->SMTPOptions = array(
             'ssl' => array(
@@ -44,11 +70,11 @@ function sendAgreementEmail($email, $firstName, $lastName, $semester) {
             )
         );
 
-        // Recipients
+        // Set email sender and recipient
         $mail->setFrom('no-reply@lib.purdue.edu');
         $mail->addAddress($email);
 
-        // Content
+        // Compose email content
         $mail->isHTML(false);
         $mail->Subject = "Equipment Agreement Confirmation";
         $message = "Dear $firstName $lastName,\n\n";
@@ -69,7 +95,16 @@ function sendAgreementEmail($email, $firstName, $lastName, $semester) {
     }
 }
 
+/**
+ * Main function to handle user agreement verification and creation
+ * Interacts with Alma API to check for existing agreements and create new ones
+ * 
+ * @param string $purdueId User's Purdue ID
+ * @param array $config Application configuration
+ * @return array Result of the operation including user info and status
+ */
 function pushUserNoteAndCheckAgreement($purdueId, $config) {
+    // Define Alma API endpoints and parameters
     $ALMA_REQ_URL = "https://api-na.hosted.exlibrisgroup.com/almaws/v1/users/";
     $ALMA_API_KEY = $config['ALMA_API_KEY'];
     $ALMA_GET_PARAM = "?user_id_type=all_unique&view=full&expand=none&apikey=";
@@ -77,6 +112,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     
     debugLog('Starting API call for Purdue ID: ' . $purdueId);
     
+    // Initialize cURL for GET request to fetch user information
     $cr = curl_init();
     $curl_options = array(
         CURLOPT_URL => sprintf("%s%s%s%s", $ALMA_REQ_URL, $purdueId, $ALMA_GET_PARAM, $ALMA_API_KEY),
@@ -89,12 +125,14 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     
     debugLog('GET Request URL: ' . $curl_options[CURLOPT_URL]);
 
+    // Execute GET request and handle response
     $response = curl_exec($cr);
     $http_code = curl_getinfo($cr, CURLINFO_HTTP_CODE);
     
     debugLog('GET Response HTTP Code: ' . $http_code);
     debugLog('GET Response: ' . $response);
 
+    // Check for cURL errors
     if(curl_errno($cr)) {
         $error_msg = 'Curl error: ' . curl_error($cr);
         debugLog($error_msg, 'ERROR');
@@ -104,19 +142,17 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
 
     curl_close($cr);
 
-    // Check for HTTP error codes
+    // Handle HTTP error responses
     if ($http_code === 400 || $http_code === 404) {
         debugLog('Received error response: ' . $response, 'ERROR');
         if ($response && ($xml = @simplexml_load_string($response))) {
-            // Try to get error message from errorList/error/errorMessage
+            // Extract error message from XML response
             if (isset($xml->errorList) && isset($xml->errorList->error)) {
                 $errorMessage = (string)$xml->errorList->error->errorMessage;
             } 
-            // Also try web_service_result/errorList/error/errorMessage structure
             else if (isset($xml->web_service_result) && isset($xml->web_service_result->errorList)) {
                 $errorMessage = (string)$xml->web_service_result->errorList->error->errorMessage;
             }
-            // Fallback error message
             else {
                 $errorMessage = "Invalid Purdue ID or user not found";
             }
@@ -126,16 +162,19 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
         return array('error' => "Invalid Purdue ID or user not found", 'xml_response' => $response);
     }
 
+    // Validate XML response
     if (!$response || !simplexml_load_string($response)) {
         $error_msg = 'Invalid XML response';
         debugLog($error_msg, 'ERROR');
         return array('error' => $error_msg, 'xml_response' => $response);
     }
 
+    // Parse XML response using DOMDocument for more precise control
     $doc = new DOMDocument();
     $doc->loadXML($response);
     $xpath = new DOMXpath($doc);
 
+    // Check for API errors in response
     $errorsExist = $xpath->query("//errorsExist[text()='true']");
     if ($errorsExist->length > 0) {
         $errorMessage = $xpath->query("//errorMessage")->item(0)->nodeValue;
@@ -143,7 +182,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
         return array('error' => $errorMessage, 'xml_response' => $response);
     }
 
-    // Extract user information
+    // Extract user information from response
     $firstNameNode = $xpath->query("//first_name")->item(0);
     $lastNameNode = $xpath->query("//last_name")->item(0);
     $emailNode = $xpath->query("//email_address")->item(0);
@@ -156,7 +195,8 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     $phone = $phoneNode ? $phoneNode->nodeValue : '';
     $userGroup = $userGroupNode ? $userGroupNode->nodeValue : '';
 
-    $semester = "August 17, 2025";
+    // Check for existing agreement
+    $semester = $config['SEMESTER_END_DATE'];
     debugLog('Checking for existing agreement for semester: ' . $semester);
 
     $note_text_nodes = $xpath->query("//user_note[note_text[contains(text(),'Equipment Agreement') and contains(text(),'$semester')]]");
@@ -164,28 +204,28 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     if ($note_text_nodes->length == 0) {
         debugLog('No existing agreement found, creating new note');
 
-        // If this is a POST request with confirmation, proceed with creating the note
+        // Handle agreement creation if user has confirmed
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm'])) {
-            // Create a new document for the PUT request by cloning the GET response
+            // Create new XML document for PUT request
             $putDoc = new DOMDocument();
             $putDoc->loadXML($response);
             $putXpath = new DOMXPath($putDoc);
 
-            // Remove the roles section
+            // Remove roles section to prevent conflicts
             $rolesNode = $putXpath->query("//user_roles")->item(0);
             if ($rolesNode) {
                 $rolesNode->parentNode->removeChild($rolesNode);
                 debugLog('Removed roles section from PUT request');
-    }
+            }
 
-            // Get the user_notes node or create it if it doesn't exist
+            // Create or get user_notes section
             $userNotes = $putXpath->query("//user_notes")->item(0);
             if (!$userNotes) {
                 $userNotes = $putDoc->createElement("user_notes");
                 $putDoc->documentElement->appendChild($userNotes);
             }
 
-            // Create and add the new note
+            // Create new agreement note
             $userNote = $putDoc->createElement("user_note");
             $userNote->setAttribute("segment_type", "External");
             $userNotes->appendChild($userNote);
@@ -202,10 +242,11 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
             $popupNote = $putDoc->createElement("popup_note", "true");
             $userNote->appendChild($popupNote);
 
-            // Log the differences for verification
+            // Log XML changes for debugging
             debugLog('Original GET response structure: ' . preg_replace('/>\s+</', '><', $doc->saveXML()));
             debugLog('Modified PUT request structure: ' . preg_replace('/>\s+</', '><', $putDoc->saveXML()));
 
+            // Send PUT request to update user record
             $cr = curl_init();
             $curl_options = array(
                 CURLOPT_URL => sprintf("%s%s%s%s", $ALMA_REQ_URL, $purdueId, $ALMA_PUT_PARAM, $ALMA_API_KEY),
@@ -226,7 +267,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
                 $error_msg = 'Curl error during PUT: ' . curl_error($cr);
                 debugLog($error_msg, 'ERROR');
                 return array('error' => $error_msg, 'xml_response' => $response);
-        }
+            }
 
             $http_code = curl_getinfo($cr, CURLINFO_HTTP_CODE);
             debugLog('PUT Response HTTP Code: ' . $http_code);
@@ -236,7 +277,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
 
             if ($http_code !== 200) {
                 return array('error' => 'Failed to update user note. Please try again later.', 'xml_response' => $response);
-    }
+            }
 
             // Send confirmation email
             if (!sendAgreementEmail($email, $firstName, $lastName, $semester)) {
@@ -254,7 +295,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
             );
         }
 
-        // If no confirmation yet, return user info for confirmation screen
+        // Return user info for confirmation screen if not confirmed yet
         return array(
             'success' => true,
             'firstName' => $firstName,
@@ -265,6 +306,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
             'needs_confirmation' => true
         );
     } else {
+        // Handle existing agreement case
         debugLog('Existing agreement found, no update needed');
         $user_note_node = $note_text_nodes->item(0);
         $creationDateNode = $xpath->query("created_date", $user_note_node)->item(0);
@@ -293,9 +335,11 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     }
 }
 
-// Call the function and handle the result
+// ===== Main Execution Flow =====
+// Call the main function and process results
 $result = pushUserNoteAndCheckAgreement($purdueId, $config);
 
+// Handle errors
 if (isset($result['error'])) {
     $error = true;
     $errorMessage = $result['error'];
@@ -305,6 +349,7 @@ if (isset($result['error'])) {
     header("Location: index.php");
     exit();
 } else {
+    // Process successful response
     $firstName = $result['firstName'];
     $lastName = $result['lastName'];
     $email = $result['email'];
@@ -312,19 +357,20 @@ if (isset($result['error'])) {
     $userGroup = $result['userGroup'];
     
     if (isset($result['agreement_exists'])) {
+        // Handle existing agreement case
         $agreementExists = true;
         $agreementDate = $result['agreementDate'];
         $noteText = $result['noteText'];
     } elseif (isset($result['agreement_created'])) {
-        // Agreement was just created, redirect to success page
+        // Redirect to success page for newly created agreement
         header("Location: success.php");
         exit();
     } else {
-        // Show confirmation screen
+        // Show confirmation screen for new agreement
         $agreementExists = false;
     }
 
-    // Only log successful check-ins when agreement exists or was just created
+    // Log successful check-ins
     if ($agreementExists || isset($result['agreement_created'])) {
         $checkInLog = 'logs/checkin_log.csv';
         $timestamp = date('Y-m-d H:i:s');
@@ -346,6 +392,7 @@ if (isset($result['error'])) {
     <meta http-equiv="refresh" content="5;url=index.php">
     <?php endif; ?>
     <style>
+        /* Styles for error messages and containers */
         .error-container {
             max-width: 800px;
             margin: 2rem auto;
@@ -398,11 +445,13 @@ if (isset($result['error'])) {
     </style>
 </head>
 <body>
+    <!-- Header with logo -->
     <div class="header">
         <img src="LSIS_H-Full-RGB_1.jpg" alt="Purdue Libraries Logo" class="logo">
     </div>
 
     <?php if (isset($error) && $error): ?>
+        <!-- Error message display -->
         <div class="error-container">
             <div class="error-message">
                 <h2>Update Failed</h2>
@@ -419,6 +468,7 @@ if (isset($result['error'])) {
         </div>
     <?php else: ?>
         <?php if ($agreementExists): ?>
+            <!-- Display existing agreement information -->
             <div class="agreement-note">
                 <h2>Agreement already exists for this semester.</h2>
                 <p>First Name: <?php echo htmlspecialchars($firstName); ?></p>
@@ -435,6 +485,7 @@ if (isset($result['error'])) {
                 </div>
             </div>
         <?php else: ?>
+            <!-- Confirmation form for new agreement -->
             <h1>Confirm Your Information</h1>
             <form method="POST" id="confirmation_form">
                 <div class="form-section">

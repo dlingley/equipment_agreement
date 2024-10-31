@@ -1,31 +1,37 @@
 <?php
+// ===== Session Management and Authentication =====
 session_start();
 
-// Check if user is logged in and is an admin, if not redirect to login page
+// Verify user is logged in and has admin privileges
+// If not, redirect to login page for security
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || 
     !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
     header('Location: login.php');
     exit();
 }
 
-// Handle logout
+// Handle logout request
 if (isset($_GET['logout'])) {
     session_destroy();
     header('Location: login.php');
     exit();
 }
 
-// Enable error reporting
+// ===== Error Reporting Configuration =====
+// Enable comprehensive error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
+// Load application configuration
 $config = include('config.php');
 
-// Handle debug operations
+// ===== Debug Operations =====
+// Initialize debug message variables
 $debugMessage = '';
 $debugError = '';
 
+// Handle debug actions (e.g., clearing log files)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
     if ($_POST['debug_action'] === 'clear_log') {
         $debugLogFile = 'logs/equipment_agreement_debug.log';
@@ -38,7 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
     }
 }
 
-// Function to get all checkin log entries
+/**
+ * Retrieves all check-in log entries from the CSV file
+ * @return array Array of check-in entries with ID, Purdue ID, timestamp, and user group
+ */
 function getCheckinLogEntries() {
     $checkInLog = 'logs/checkin_log.csv';
     if (!file_exists($checkInLog)) {
@@ -61,7 +70,10 @@ function getCheckinLogEntries() {
     return $entries;
 }
 
-// Function to save checkin log entries
+/**
+ * Saves check-in log entries back to the CSV file
+ * @param array $entries Array of check-in entries to save
+ */
 function saveCheckinLogEntries($entries) {
     $checkInLog = 'logs/checkin_log.csv';
     $content = '';
@@ -75,10 +87,12 @@ function saveCheckinLogEntries($entries) {
     file_put_contents($checkInLog, $content);
 }
 
-// Handle log entry operations
+// ===== Log Entry Operations =====
+// Handle POST requests for log management (delete, edit entries)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $entries = getCheckinLogEntries();
     
+    // Handle single entry deletion
     if (isset($_POST['delete']) && isset($_POST['entry_id'])) {
         $id = (int)$_POST['entry_id'];
         unset($entries[$id]);
@@ -87,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
+    // Handle bulk deletion of selected entries
     if (isset($_POST['delete_selected']) && isset($_POST['selected_entries'])) {
         $selectedIds = $_POST['selected_entries'];
         foreach ($selectedIds as $id) {
@@ -97,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
     
+    // Handle entry editing
     if (isset($_POST['edit']) && isset($_POST['entry_id'])) {
         $id = (int)$_POST['entry_id'];
         $entries[$id]['purdue_id'] = $_POST['purdue_id'];
@@ -108,10 +124,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get checkin log entries for editing
+// Get current log entries for display
 $logEntries = getCheckinLogEntries();
 
-// Function to get usage report per month
+/**
+ * Generates usage report data grouped by month and user group
+ * @return array Array of usage statistics
+ */
 function getUsageReport() {
     $checkInLog = 'logs/checkin_log.csv';
     if (!file_exists($checkInLog)) {
@@ -121,6 +140,7 @@ function getUsageReport() {
     $logEntries = file($checkInLog);
     $usageReport = array();
 
+    // Process each log entry and group by month and user group
     foreach ($logEntries as $entry) {
         $entryParts = explode(',', trim($entry));
         
@@ -145,10 +165,11 @@ function getUsageReport() {
     return $usageReport;
 }
 
-// Get the usage report
+// ===== Usage Report Generation =====
+// Get usage statistics
 $usageReport = getUsageReport();
 
-// Process data for the graph
+// Process data for the graph visualization
 $months = array_keys($usageReport);
 $userGroups = array();
 $datasets = array();
@@ -162,13 +183,13 @@ foreach ($usageReport as $month => $groups) {
     }
 }
 
-// Generate random colors for each user group
+// Generate random colors for graph visualization
 $colors = array();
 foreach ($userGroups as $group) {
     $colors[$group] = sprintf('#%06X', mt_rand(0, 0xFFFFFF));
 }
 
-// Prepare datasets for each user group
+// Prepare datasets for Chart.js
 foreach ($userGroups as $group) {
     $data = array();
     foreach ($months as $month) {
@@ -197,8 +218,10 @@ $graphData = array(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Usage Report</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Include Chart.js for graph visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* Styles for log management interface */
         .log-section {
             margin: 20px;
             padding: 20px;
@@ -235,6 +258,7 @@ $graphData = array(
         .edit-form.active {
             display: table-row;
         }
+        /* Styles for bulk delete functionality */
         .delete-selected {
             margin: 10px 0;
             padding: 8px 16px;
@@ -252,6 +276,7 @@ $graphData = array(
             width: 30px;
             text-align: center;
         }
+        /* Styles for log controls */
         .log-controls {
             margin-bottom: 20px;
         }
@@ -267,6 +292,7 @@ $graphData = array(
         .log-controls button:hover {
             background-color: #0056b3;
         }
+        /* Styles for debug section */
         .debug-section {
             margin: 20px;
             padding: 20px;
@@ -288,6 +314,7 @@ $graphData = array(
         .debug-form button:hover {
             background-color: #c82333;
         }
+        /* Styles for debug messages */
         .debug-message {
             padding: 10px;
             margin-top: 10px;
@@ -312,6 +339,7 @@ $graphData = array(
     </style>
 </head>
 <body>
+    <!-- Header Section -->
     <div class="header">
         <img src="LSIS_H-Full-RGB_1.jpg" alt="Purdue Libraries Logo" class="logo">
         <h1>Admin Panel</h1>
@@ -321,10 +349,12 @@ $graphData = array(
         </div>
     </div>
 
+    <!-- Usage Graph Section -->
     <div class="graph-container">
         <canvas id="usageGraph"></canvas>
     </div>
 
+    <!-- Monthly Usage Report Table -->
     <div class="usage-report">
         <h2>Monthly Usage</h2>
         <table>
@@ -349,6 +379,7 @@ $graphData = array(
         </table>
     </div>
 
+    <!-- Log Management Section -->
     <div class="log-section" id="log-section">
         <h2>Check-in Log Editor</h2>
         <div class="log-controls">
@@ -443,8 +474,9 @@ $graphData = array(
         <?php endif; ?>
     </div>
 
+    <!-- JavaScript for UI Functionality -->
     <script>
-        // Graph initialization
+        // Initialize usage graph using Chart.js
         const ctx = document.getElementById('usageGraph').getContext('2d');
         const data = <?php echo json_encode($graphData); ?>;
         
@@ -480,7 +512,7 @@ $graphData = array(
             }
         });
 
-        // Log viewer/editor functions
+        // Log viewer/editor toggle functions
         function showLogViewer() {
             document.getElementById('log-viewer').style.display = 'block';
             document.getElementById('log-editor').style.display = 'none';
@@ -504,6 +536,7 @@ $graphData = array(
             document.getElementById(`edit-form-${index}`).classList.remove('active');
         }
 
+        // Bulk selection functions
         function toggleAllCheckboxes() {
             const selectAllCheckbox = document.getElementById('select-all');
             const checkboxes = document.getElementsByClassName('entry-checkbox');
