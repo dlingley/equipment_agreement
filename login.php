@@ -1,9 +1,13 @@
 <?php
 session_start();
 
-// If already logged in, redirect to index.php
+// If already logged in, redirect to appropriate page
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
-    header('Location: index.php');
+    if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'admin') {
+        header('Location: admin.php');
+    } else {
+        header('Location: index.php');
+    }
     exit();
 }
 
@@ -11,14 +15,25 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $config = require 'config.php';
+    $submitted_username = $_POST['username'] ?? '';
     $submitted_password = $_POST['password'] ?? '';
     
-    if ($submitted_password === $config['ADMIN_PASSWORD']) {
+    // Check for admin login
+    if ($submitted_username === $config['ADMIN_USERNAME'] && $submitted_password === $config['ADMIN_PASSWORD']) {
         $_SESSION['logged_in'] = true;
+        $_SESSION['user_type'] = 'admin';
+        header('Location: admin.php');
+        exit();
+    }
+    // Check for regular user login
+    else if ($submitted_username === $config['USER_USERNAME'] && $submitted_password === $config['USER_PASSWORD']) {
+        $_SESSION['logged_in'] = true;
+        $_SESSION['user_type'] = 'user';
         header('Location: index.php');
         exit();
-    } else {
-        $error = 'Invalid password';
+    }
+    else {
+        $error = 'Invalid username or password';
     }
 }
 ?>
@@ -29,6 +44,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Purdue Libraries Equipment Agreement</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .login-form {
+            max-width: 400px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            margin: 1rem auto;
+            max-width: 400px;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -43,6 +91,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
 
     <form method="POST" class="login-form">
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+        </div>
         <div class="form-group">
             <label for="password">Password:</label>
             <input type="password" id="password" name="password" required>

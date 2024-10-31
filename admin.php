@@ -1,8 +1,9 @@
 <?php
 session_start();
 
-// Check if user is logged in, if not redirect to login page
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+// Check if user is logged in and is an admin, if not redirect to login page
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || 
+    !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
     header('Location: login.php');
     exit();
 }
@@ -19,13 +20,96 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
-// Function to log debug information
-function debugLog($message, $level = 'INFO') {
-    $logFile = 'logs/equipment_agreement_debug.log';
-    $timestamp = date('Y-m-d H:i:s');
-    $logMessage = "[$timestamp] [$level] $message\n";
-    file_put_contents($logFile, $logMessage, FILE_APPEND);
+$config = include('config.php');
+
+// Handle debug operations
+$debugMessage = '';
+$debugError = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
+    if ($_POST['debug_action'] === 'clear_log') {
+        $debugLogFile = 'logs/equipment_agreement_debug.log';
+        if (file_exists($debugLogFile)) {
+            file_put_contents($debugLogFile, '');
+            $debugMessage = 'Debug log cleared successfully';
+        } else {
+            $debugError = 'Debug log file not found';
+        }
+    }
 }
+
+// Function to get all checkin log entries
+function getCheckinLogEntries() {
+    $checkInLog = 'logs/checkin_log.csv';
+    if (!file_exists($checkInLog)) {
+        return array();
+    }
+    
+    $entries = array();
+    $lines = file($checkInLog);
+    foreach ($lines as $index => $line) {
+        $entry = str_getcsv(trim($line));
+        if (count($entry) >= 3) {
+            $entries[] = array(
+                'id' => $index,
+                'purdue_id' => $entry[0],
+                'timestamp' => $entry[1],
+                'user_group' => $entry[2]
+            );
+        }
+    }
+    return $entries;
+}
+
+// Function to save checkin log entries
+function saveCheckinLogEntries($entries) {
+    $checkInLog = 'logs/checkin_log.csv';
+    $content = '';
+    foreach ($entries as $entry) {
+        $content .= implode(',', [
+            $entry['purdue_id'],
+            $entry['timestamp'],
+            $entry['user_group']
+        ]) . "\n";
+    }
+    file_put_contents($checkInLog, $content);
+}
+
+// Handle log entry operations
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $entries = getCheckinLogEntries();
+    
+    if (isset($_POST['delete']) && isset($_POST['entry_id'])) {
+        $id = (int)$_POST['entry_id'];
+        unset($entries[$id]);
+        saveCheckinLogEntries(array_values($entries));
+        header('Location: admin.php#log-section');
+        exit();
+    }
+
+    if (isset($_POST['delete_selected']) && isset($_POST['selected_entries'])) {
+        $selectedIds = $_POST['selected_entries'];
+        foreach ($selectedIds as $id) {
+            unset($entries[(int)$id]);
+        }
+        saveCheckinLogEntries(array_values($entries));
+        header('Location: admin.php#log-section');
+        exit();
+    }
+    
+    if (isset($_POST['edit']) && isset($_POST['entry_id'])) {
+        $id = (int)$_POST['entry_id'];
+        $entries[$id]['purdue_id'] = $_POST['purdue_id'];
+        $entries[$id]['timestamp'] = $_POST['timestamp'];
+        $entries[$id]['user_group'] = $_POST['user_group'];
+        saveCheckinLogEntries($entries);
+        header('Location: admin.php#log-section');
+        exit();
+    }
+}
+
+// Get checkin log entries for editing
+$logEntries = getCheckinLogEntries();
 
 // Function to get usage report per month
 function getUsageReport() {
@@ -40,9 +124,8 @@ function getUsageReport() {
     foreach ($logEntries as $entry) {
         $entryParts = explode(',', trim($entry));
         
-        // Ensure the log entry has the expected number of parts
         if (count($entryParts) < 3) {
-            continue; // Skip this entry if it does not have enough parts
+            continue;
         }
 
         list($purdueId, $timestamp, $userGroup) = $entryParts;
@@ -115,11 +198,123 @@ $graphData = array(
     <title>Admin - Usage Report</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .log-section {
+            margin: 20px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .log-viewer, .log-editor {
+            display: none;
+        }
+        .log-section table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .log-section th, .log-section td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        .log-section th {
+            background-color: #f5f5f5;
+        }
+        .log-section tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .log-section .actions {
+            display: flex;
+            gap: 5px;
+        }
+        .edit-form {
+            display: none;
+        }
+        .edit-form.active {
+            display: table-row;
+        }
+        .delete-selected {
+            margin: 10px 0;
+            padding: 8px 16px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: none;
+        }
+        .delete-selected:hover {
+            background-color: #c82333;
+        }
+        .checkbox-column {
+            width: 30px;
+            text-align: center;
+        }
+        .log-controls {
+            margin-bottom: 20px;
+        }
+        .log-controls button {
+            margin-right: 10px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+        }
+        .log-controls button:hover {
+            background-color: #0056b3;
+        }
+        .debug-section {
+            margin: 20px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .debug-form {
+            margin-bottom: 15px;
+        }
+        .debug-form button {
+            padding: 8px 16px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .debug-form button:hover {
+            background-color: #c82333;
+        }
+        .debug-message {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+        .debug-message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .debug-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .log-viewer {
+            display: none;
+        }
+        .log-editor {
+            display: none; /* Optional: Hide editor by default if desired */
+        }
+    </style>
 </head>
 <body>
     <div class="header">
         <img src="LSIS_H-Full-RGB_1.jpg" alt="Purdue Libraries Logo" class="logo">
-        <h1>Usage Report</h1>
+        <h1>Admin Panel</h1>
         <div class="header-buttons">
             <a href="index.php" class="button">Back to Homepage</a>
             <a href="?logout=1" class="button">Logout</a>
@@ -154,7 +349,102 @@ $graphData = array(
         </table>
     </div>
 
+    <div class="log-section" id="log-section">
+        <h2>Check-in Log Editor</h2>
+        <div class="log-controls">
+            <button onclick="showLogViewer()">View Log</button>
+            <button onclick="showLogEditor()">Edit Log</button>
+        </div>
+
+        <!-- Read-only Log Viewer -->
+        <div class="log-viewer" id="log-viewer">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Purdue ID</th>
+                        <th>Timestamp</th>
+                        <th>User Group</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($logEntries as $entry): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($entry['purdue_id']); ?></td>
+                            <td><?php echo htmlspecialchars($entry['timestamp']); ?></td>
+                            <td><?php echo htmlspecialchars($entry['user_group']); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Editable Log Editor -->
+        <div class="log-editor" id="log-editor">
+            <form id="bulk-actions-form" method="POST">
+                <button type="submit" name="delete_selected" class="delete-selected" id="delete-selected-btn" onclick="return confirm('Are you sure you want to delete all selected entries?')">Delete Selected</button>
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="checkbox-column">
+                                <input type="checkbox" id="select-all" onclick="toggleAllCheckboxes()">
+                            </th>
+                            <th>Purdue ID</th>
+                            <th>Timestamp</th>
+                            <th>User Group</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($logEntries as $index => $entry): ?>
+                            <tr id="entry-<?php echo $index; ?>">
+                                <td class="checkbox-column">
+                                    <input type="checkbox" name="selected_entries[]" value="<?php echo $index; ?>" class="entry-checkbox" onclick="updateDeleteSelectedButton()">
+                                </td>
+                                <td><?php echo htmlspecialchars($entry['purdue_id']); ?></td>
+                                <td><?php echo htmlspecialchars($entry['timestamp']); ?></td>
+                                <td><?php echo htmlspecialchars($entry['user_group']); ?></td>
+                                <td class="actions">
+                                    <button type="button" onclick="showEditForm(<?php echo $index; ?>)" class="button">Edit</button>
+                                    <button type="submit" name="delete" value="<?php echo $index; ?>" class="button" onclick="return confirm('Are you sure you want to delete this entry?')">Delete</button>
+                                    <input type="hidden" name="entry_id" value="<?php echo $index; ?>">
+                                </td>
+                            </tr>
+                            <tr id="edit-form-<?php echo $index; ?>" class="edit-form">
+                                <td colspan="5">
+                                    <form method="POST">
+                                        <input type="hidden" name="entry_id" value="<?php echo $index; ?>">
+                                        <input type="text" name="purdue_id" value="<?php echo htmlspecialchars($entry['purdue_id']); ?>" required>
+                                        <input type="datetime-local" name="timestamp" value="<?php echo date('Y-m-d\TH:i', strtotime($entry['timestamp'])); ?>" required>
+                                        <input type="text" name="user_group" value="<?php echo htmlspecialchars($entry['user_group']); ?>" required>
+                                        <button type="submit" name="edit" class="button">Save</button>
+                                        <button type="button" onclick="hideEditForm(<?php echo $index; ?>)" class="button">Cancel</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </form>
+        </div>
+    </div>
+
+    <!-- Debug Section -->
+    <div class="debug-section">
+        <h2>Debug Controls</h2>
+        <form method="POST" class="debug-form">
+            <input type="hidden" name="debug_action" value="clear_log">
+            <button type="submit" onclick="return confirm('Are you sure you want to clear the debug log?')">Clear Debug Log</button>
+        </form>
+        <?php if ($debugMessage): ?>
+            <div class="debug-message success"><?php echo htmlspecialchars($debugMessage); ?></div>
+        <?php endif; ?>
+        <?php if ($debugError): ?>
+            <div class="debug-message error"><?php echo htmlspecialchars($debugError); ?></div>
+        <?php endif; ?>
+    </div>
+
     <script>
+        // Graph initialization
         const ctx = document.getElementById('usageGraph').getContext('2d');
         const data = <?php echo json_encode($graphData); ?>;
         
@@ -189,6 +479,55 @@ $graphData = array(
                 }
             }
         });
+
+        // Log viewer/editor functions
+        function showLogViewer() {
+            document.getElementById('log-viewer').style.display = 'block';
+            document.getElementById('log-editor').style.display = 'none';
+        }
+
+        function showLogEditor() {
+            document.getElementById('log-viewer').style.display = 'none';
+            document.getElementById('log-editor').style.display = 'block';
+        }
+
+        // Hide both log viewer and editor by default
+        document.getElementById('log-viewer').style.display = 'none';
+        document.getElementById('log-editor').style.display = 'none';
+
+        // Log editor functions
+        function showEditForm(index) {
+            document.getElementById(`edit-form-${index}`).classList.add('active');
+        }
+
+        function hideEditForm(index) {
+            document.getElementById(`edit-form-${index}`).classList.remove('active');
+        }
+
+        function toggleAllCheckboxes() {
+            const selectAllCheckbox = document.getElementById('select-all');
+            const checkboxes = document.getElementsByClassName('entry-checkbox');
+            
+            for (let checkbox of checkboxes) {
+                checkbox.checked = selectAllCheckbox.checked;
+            }
+            
+            updateDeleteSelectedButton();
+        }
+
+        function updateDeleteSelectedButton() {
+            const checkboxes = document.getElementsByClassName('entry-checkbox');
+            const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+            let checkedCount = 0;
+            
+            for (let checkbox of checkboxes) {
+                if (checkbox.checked) {
+                    checkedCount++;
+                }
+            }
+            
+            deleteSelectedBtn.style.display = checkedCount > 0 ? 'block' : 'none';
+        }
     </script>
 </body>
 </html>
