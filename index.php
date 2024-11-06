@@ -329,7 +329,7 @@ endif;
 
             <!-- Agreement Content Section -->
             <section class="agreement-section">
-        <p>I hereby agree to the following conditions for use of the Knowledge Lab (the "Lab") facilities and equipment.</p>
+        <p>I                     hereby agree to the following conditions for use of the Knowledge Lab (the "Lab") facilities and equipment.</p>
 
         <h2>Conditions of Use and General Conduct</h2>
         <p>I will comply with Purdue University ("Purdue") and Purdue Libraries policies and procedures including, but not limited to Lab guidelines, signage, and instructions.</p>
