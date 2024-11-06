@@ -328,62 +328,26 @@ endif;
             </div>
 
             <!-- Agreement Content Section -->
-            <div class="release-form-container">
-    <h1>Knowledge Lab Release Form</h1>
-    
-    <section class="agreement-section">
-        <p>I hereby agree to the following conditions for use of the Knowledge Lab (the "Lab") facilities and equipment.</p>
+            <div id="agreement_content">
+                <!-- Each paragraph represents a different term of the agreement -->
+                <p>I have provided my current Purdue University Identification Number, Purdue email address, full name, and phone number so Purdue Libraries staff may contact me regarding the status and/or terms of my equipment request. I am solely responsible for keeping Purdue Libraries informed with my accurate contact information.</p>
 
-        <h2>Conditions of Use and General Conduct</h2>
-        <p>I will comply with Purdue University ("Purdue") and Purdue Libraries policies and procedures including, but not limited to Lab guidelines, signage, and instructions.</p>
-        
-        <p>The Knowledge Lab is a collection of equipment, tools, materials, and supplies intended to allow for exploration, creativity, and innovation. To maintain the privilege of use for all members of the Purdue community we ask that you respect the space, the items, and the other users. All Purdue community members who use the space agree to comply with all Knowledge Lab policies and Purdue University codes of conduct.</p>
+                <p>I acknowledge that it is my responsibility to check the condition of the equipment I am receiving at the time of checkout.</p>
 
-        <ul>
-            <li>Keep the Knowledge Lab and everything within the facility clean and organized. If you take out tools and materials, return them to the correct location and clean up the area used. If equipment or a tool is broken or not functioning correctly, please notify staff immediately.</li>
-            <li>Be respectful to Knowledge Lab staff, other users of the Knowledge and towards its equipment at all times.</li>
-            <li>Staff are available to assist patrons with equipment use, understanding materials and processes, and talking through ideas and project concepts for you to complete the work yourself.</li>
-            <li>Staff have the right to refuse projects and material usage if they are in violation of Knowledge Lab policies.</li>
-            <li>Users are responsible for properly monitoring and labeling anything brought into the lab and the Knowledge Lab is not responsible for any lost, damaged, or stolen property.</li>
-        </ul>
+                <p>Purdue Libraries staff documents the condition of the equipment upon both checkout and return, and I will be financially responsible for any cosmetic wear and tear or other damage, loss, or theft that occurs while the equipment is on loan to me. I will immediately report any damage, loss, or theft of the borrowed equipment during my loan period to Purdue Libraries. In the event that the borrowed equipment is stolen, I am required to immediately notify library staff and provide a police report detailing the theft of the equipment.</p>
 
-        <p>Use of the Knowledge Lab and materials created will not be:</p>
-        <ul>
-            <li>Prohibited by local, state, or federal law.</li>
-            <li>Unsafe, harmful, dangerous, or pose an immediate or perceived threat to the well-being of others.</li>
-            <li>Obscene or otherwise inappropriate for the University and Library environment.</li>
-            <li>In violation of intellectual property rights.</li>
-        </ul>
+                <p>I understand that when returning any borrowed equipment, staff will check the condition of all items while I am present. I acknowledge that if I do not remain at the service point during this process, I will accept responsibility for any damage that is deemed to have occurred while on loan to me.</p>
 
-        <h2>Knowledge Lab Access</h2>
-        <p>The Knowledge Lab is open and free to those affiliated with Purdue. Always bring a valid Purdue ID to swipe in at the front desk, all first time users must fill out a release form. The Knowledge Lab is not open to the public. Outside guests may accompany members of the Purdue community but may not use any of the tools, equipment, or materials in the space. Guests under 18 years old must be accompanied by their parent or legal guardian at all times and may not be left alone in the Knowledge Lab.</p>
+                <p>I acknowledge and agree that I shall not have equipment repaired by an outside source. I understand all repairs of university equipment must be handled by Purdue Libraries Knowledge Lab. Any violation will warrant repair charges not to exceed a replacement charge.</p>
 
-        <h2>Material Usage</h2>
-        <p>Materials available in the Knowledge Lab are a courtesy provided by Purdue University and are intended to be used in the lab. Please be respectful of the resources provided and avoid wasting consumable supplies and materials. We cannot guarantee the availability of any materials at any time. If a project requires a larger amount of materials that exceeds our monthly allotments, Knowledge Lab staff can provide you with information on recommended materials and suppliers. Our facility is a place of learning and exploration. The free materials in the Knowledge are not to be used for commercial purposes or mass production.</p>
+                <p>I acknowledge and understand that any and all equipment borrowed must be returned to the appropriate service point in the library by the date and time noted in the email receipt that was sent to my Purdue email address. Failure to act in accordance with the terms within the receipt may result in the forfeiture of borrowing privileges, and/or replacement fees based on the current replacement cost of the borrowed item.</p>
 
-        <h2>Copyright</h2>
-        <p>The Knowledge Lab encourages innovation and creations of one's own design. Projects created in the Knowledge Lab must respect and comply with intellectual property laws at all times, including, but not limited to, trademarks, logos, and copyrighted designs.</p>
+                <p>I agree that I will not install, modify, or copy software on borrowed equipment and will not remove "Library Use Only" equipment from the library. I further understand that my violation may warrant an intervention by Purdue University Police Department to retrieve my borrowed equipment in addition to any fines and forfeiture of borrowing privileges that may be levied against me.</p>
 
-        <h2>Safety and Assumption of Risk</h2>
-        <p>Use of the Lab facility, tools, equipment, and materials is entirely voluntary and optional. Such use involves inherent hazards, dangers, and risks. I hereby agree that I assume all responsibility for any risks of loss, damage, or personal injury that I may sustain and/or any loss or damage to property that I own, as a result of being engaged in Lab activities, whether caused by the negligence of the Lab personnel, equipment or otherwise.</p>
+                <p>I hereby release Purdue University from liability and responsibility whatsoever for any claim of action that I, my estate, heirs, executors, or assigns may have for any personal injury, property damage, or wrongful death arising from the activities of my voluntary equipment request and agree to indemnify and hold harmless Purdue University from any demands, loss, liability, claims, or expenses (including attorneys' fees), made against the University by any third party, arising out of or in connection with my borrowing equipment from the University.</p>
 
-        <h2>Release of Liability</h2>
-        <p>I hereby release and forever discharge Purdue University, the Board of Trustees of Purdue University, its members individually, and the officers, agents and employees of Purdue University from any and all claims, demands, rights and causes of action of whatever kind that I may have, caused by or arising from my use of the Lab facilities, tools, equipment, or materials regardless of whether or not caused in whole or part by the negligence or other fault of the parties to this agreement.</p>
-
-        <h2>Indemnification</h2>
-        <p>I agree to indemnify and hold Purdue harmless from and against any and all losses, liabilities, damages, costs or expenses (including but not limited to reasonable attorneys' fees and other litigation costs and expenses) incurred by Purdue.</p>
-
-        <h2>Consent to Medical Treatment</h2>
-        <p>I give permission for Purdue and its employees, volunteers, agents, representatives and emergency personnel to make necessary first aid decisions in the event of an accident, injury, or illness I may suffer during the use of the Lab. If I need medical treatment, I will be financially responsible for any costs incurred as a result of such treatment.</p>
-
-        <h2>Miscellaneous</h2>
-        <p>A. PURDUE EXPRESSLY DISCLAIMS ALL WARRANTIES OF ANY KIND, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, INCLUDING WITHOUT LIMITATION IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT WITH REGARD TO THE LAB, EQUIPMENT, TOOLS AND MATERIALS.</p>
-        <p>B. If any provision of this document is determined to be invalid for any reason, such invalidity shall not affect the validity of any other provisions, which other provisions shall remain in full force and effect as if this agreement had been executed with the invalid provision eliminated.</p>
-        <p>C. This agreement is entered into in Indiana and shall be governed by and construed in accordance with the substantive law (and not the law of conflicts) of the State of Indiana and applicable U.S. federal law. Courts of competent authority located in Tippecanoe County, Indiana shall have sole and exclusive jurisdiction of any action arising out of or in connection with the agreement, and such courts shall be the sole and exclusive venue for any such action.</p>
-
-        <p class="final-statement">I hereby warrant that I am eighteen (18) years old or more and competent to contract in my own name or, if I am less than eighteen years old, that my parent or guardian has signed this release form below. This release is binding on me and my heirs, assigns and personal representatives.</p>
-    </section>
-</div>
+                <p class="bold">I understand this is a legally binding agreement and specifically agree to the terms herein as a condition for using the equipment.</p>
+            </div>
 
             <!-- Form Input Section -->
             <div class="form-section">
