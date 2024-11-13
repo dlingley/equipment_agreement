@@ -324,7 +324,7 @@ endif;
         <form method="POST" id="agreement_form">
             <!-- Notice about the agreement's legal binding nature -->
             <div class="important-notice">
-                Read this document before signing. This legally binding contract must be signed prior to equipment checkout and is valid until <?php echo htmlspecialchars($config['SEMESTER_END_DATE']); ?>.
+                Read this document before signing. This legally binding contract must be signed prior to equipment checkout.
             </div>
 
             <!-- Agreement Content Section -->

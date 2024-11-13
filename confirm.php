@@ -89,7 +89,7 @@ function sendAgreementEmail($email, $firstName, $lastName, $semester) {
         $mail->isHTML(false);
         $mail->Subject = "Equipment Agreement Confirmation";
         $message = "Dear $firstName $lastName,\n\n";
-        $message .= "This email confirms that you have agreed to the Equipment Agreement valid until $semester.\n\n";
+        $message .= "This email confirms that you have agreed to the Equipment Agreement.\n\n";
         $message .= "Agreement Details:\n";
         $message .= "- You are responsible for any equipment borrowed from the Knowledge Lab\n";
         $message .= "- Equipment must be returned in the same condition as when borrowed\n";
@@ -206,10 +206,9 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     $userGroup = $userGroupNode ? $userGroupNode->nodeValue : '';
 
     // Check for existing agreement
-    $semester = $config['SEMESTER_END_DATE'];
-    debugLog('Checking for existing agreement for semester: ' . $semester);
-
-    $note_text_nodes = $xpath->query("//user_note[note_text[contains(text(),'Equipment Agreement') and contains(text(),'$semester')]]");
+    // $semester = $config['SEMESTER_END_DATE'];
+    debugLog('Checking for existing agreement');
+    $note_text_nodes = $xpath->query("//user_note[note_text[contains(text(),'Equipment Agreement')]]");
 
     if ($note_text_nodes->length == 0) {
         debugLog('No existing agreement found, creating new note');
@@ -243,7 +242,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
             $noteType = $putDoc->createElement("note_type", "CIRCULATION");
             $userNote->appendChild($noteType);
 
-            $noteText = $putDoc->createElement("note_text", "Equipment Agreement valid to $semester.");
+            $noteText = $putDoc->createElement("note_text", "Equipment Agreement");
             $userNote->appendChild($noteText);
 
             $userViewable = $putDoc->createElement("user_viewable", "true");
@@ -452,6 +451,45 @@ if (isset($result['error'])) {
             font-style: italic;
             margin-top: 1rem;
         }
+        /* Add these styles to the existing <style> section */
+        .form-section input[readonly] {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            color: #495057;
+            cursor: not-allowed;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            font-weight: bold;
+            color: #212529;
+        }
+        
+        .agreement-details {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .agreement-details p {
+            margin: 0.5rem 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .agreement-details span.label {
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .agreement-details span.value {
+            color: #212529;
+        }
     </style>
 </head>
 <body>
@@ -480,7 +518,7 @@ if (isset($result['error'])) {
         <?php if ($agreementExists): ?>
             <!-- Display existing agreement information -->
             <div class="agreement-note">
-                <h2>Agreement already exists for this semester.</h2>
+                <h2>Agreement already exists.</h2>
                 <p>First Name: <?php echo htmlspecialchars($firstName); ?></p>
                 <p>Last Name: <?php echo htmlspecialchars($lastName); ?></p>
                 <p>Email: <?php echo htmlspecialchars($email); ?></p>

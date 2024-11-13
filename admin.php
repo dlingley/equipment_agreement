@@ -43,6 +43,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
         } else {
             $debugError = 'Debug log file not found';
         }
+    } elseif ($_POST['debug_action'] === 'download_log') {
+        $checkInLog = $config['LOG_PATHS']['CHECKIN'];
+        if (file_exists($checkInLog)) {
+            // Set headers for CSV download
+            header('Content-Type: text/csv');
+            header('Content-Disposition: attachment; filename="usage_log_' . date('Y-m-d') . '.csv"');
+            header('Pragma: no-cache');
+            
+            // Create output buffer to build CSV content
+            ob_start();
+            
+            // Write header row
+            echo "Purdue ID,Timestamp,User Group\n";
+            
+            // Write log contents
+            readfile($checkInLog);
+            
+            // Get complete content and clean buffer
+            $content = ob_get_clean();
+            
+            // Output the CSV content
+            echo $content;
+            exit();
+        } else {
+            $debugError = 'Log file not found';
+        }
     }
 }
 
@@ -345,6 +371,19 @@ $graphData = array(
         .log-editor {
             display: none; /* Optional: Hide editor by default if desired */
         }
+        .download-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .download-button:hover {
+            background-color: #218838;
+        }
     </style>
 </head>
 <body>
@@ -394,6 +433,10 @@ $graphData = array(
         <div class="log-controls">
             <button onclick="showLogViewer()">View Log</button>
             <button onclick="showLogEditor()">Edit Log</button>
+            <form method="POST" style="display: inline;">
+                <input type="hidden" name="debug_action" value="download_log">
+                <button type="submit" class="download-button">Download Log</button>
+            </form>
         </div>
 
         <!-- Read-only Log Viewer -->
