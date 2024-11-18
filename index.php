@@ -296,7 +296,7 @@ endif;
     <!-- Header Section -->
     <div class="header">
         <img src="LSIS_H-Full-RGB_1.jpg" alt="Purdue Libraries Logo" class="logo">
-        <h1>Purdue Libraries Equipment Agreement</h1>
+        <h1>Purdue Libraries Knowledge Lab User Agreement</h1>
         <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'admin'): ?>
         <!-- Show admin navigation buttons if user is an admin -->
         <div class="header-buttons">
@@ -324,7 +324,7 @@ endif;
         <form method="POST" id="agreement_form">
             <!-- Notice about the agreement's legal binding nature -->
             <div class="important-notice">
-                Read this document before signing. This legally binding contract must be signed prior to equipment checkout.
+                Read this document before signing. This legally binding contract must be signed prior to working in the Knowledge Lab.
             </div>
 
             <!-- Agreement Content Section -->
