@@ -26,8 +26,6 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
-
-
 // ===== Debug Operations =====
 // Initialize debug message variables
 $debugMessage = '';
@@ -36,16 +34,16 @@ $debugError = '';
 // Handle debug actions (e.g., clearing log files)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
     if ($_POST['debug_action'] === 'clear_log') {
-        $debugLogFile = $config['LOG_PATHS']['DEBUG'];
-        if (file_exists($debugLogFile)) {
+        $debugLogFile = $config['LOG_PATHS']['DEBUG'] ?? null;
+        if ($debugLogFile && file_exists($debugLogFile)) {
             file_put_contents($debugLogFile, '');
             $debugMessage = 'Debug log cleared successfully';
         } else {
             $debugError = 'Debug log file not found';
         }
     } elseif ($_POST['debug_action'] === 'download_log') {
-        $checkInLog = $config['LOG_PATHS']['CHECKIN'];
-        if (file_exists($checkInLog)) {
+        $checkInLog = $config['LOG_PATHS']['CHECKIN'] ?? null;
+        if ($checkInLog && file_exists($checkInLog)) {
             // Set headers for CSV download
             header('Content-Type: text/csv');
             header('Content-Disposition: attachment; filename="usage_log_' . date('Y-m-d') . '.csv"');
@@ -67,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
             echo $content;
             exit();
         } else {
-            $debugError = 'Log file not found';
+            $debugError = 'Check-in log file not found';
         }
     }
 }
@@ -79,12 +77,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
  */
 function getCheckinLogEntries($config) {
     if (!isset($config['LOG_PATHS']) || !isset($config['LOG_PATHS']['CHECKIN'])) {
-        error_log('Configuration error: LOG_PATHS not properly set');
+        error_log('Configuration error: LOG_PATHS[CHECKIN] not properly set');
         return array();
     }
     
     $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     if (!file_exists($checkInLog)) {
+        error_log("Check-in log file not found at: $checkInLog");
         return array();
     }
     
@@ -107,8 +106,15 @@ function getCheckinLogEntries($config) {
 /**
  * Saves check-in log entries back to the CSV file
  * @param array $entries Array of check-in entries to save
+ * @param array $config Application configuration
+ * @return bool True if successful, false otherwise
  */
 function saveCheckinLogEntries($entries, $config) {
+    if (!isset($config['LOG_PATHS']) || !isset($config['LOG_PATHS']['CHECKIN'])) {
+        error_log('Configuration error: LOG_PATHS[CHECKIN] not properly set');
+        return false;
+    }
+
     $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     $content = '';
     foreach ($entries as $entry) {
@@ -118,7 +124,23 @@ function saveCheckinLogEntries($entries, $config) {
             $entry['user_group']
         ]) . "\n";
     }
-    file_put_contents($checkInLog, $content);
+    
+    // Ensure the directory exists
+    $dir = dirname($checkInLog);
+    if (!is_dir($dir)) {
+        if (!@mkdir($dir, 0755, true)) {
+            error_log("Failed to create directory: $dir");
+            return false;
+        }
+    }
+    
+    // Try to write the file
+    if (@file_put_contents($checkInLog, $content) === false) {
+        error_log("Failed to write to check-in log: $checkInLog");
+        return false;
+    }
+    
+    return true;
 }
 
 // ===== Log Entry Operations =====
@@ -130,7 +152,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['delete']) && isset($_POST['entry_id'])) {
         $id = (int)$_POST['entry_id'];
         unset($entries[$id]);
-        saveCheckinLogEntries(array_values($entries), $config);
+        if (!saveCheckinLogEntries(array_values($entries), $config)) {
+            $debugError = 'Failed to save changes to check-in log';
+        }
         header('Location: admin.php#log-section');
         exit();
     }
@@ -141,7 +165,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($selectedIds as $id) {
             unset($entries[(int)$id]);
         }
-        saveCheckinLogEntries(array_values($entries), $config);
+        if (!saveCheckinLogEntries(array_values($entries), $config)) {
+            $debugError = 'Failed to save changes to check-in log';
+        }
         header('Location: admin.php#log-section');
         exit();
     }
@@ -152,7 +178,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $entries[$id]['purdue_id'] = $_POST['purdue_id'];
         $entries[$id]['timestamp'] = $_POST['timestamp'];
         $entries[$id]['user_group'] = $_POST['user_group'];
-        saveCheckinLogEntries($entries, $config);
+        if (!saveCheckinLogEntries($entries, $config)) {
+            $debugError = 'Failed to save changes to check-in log';
+        }
         header('Location: admin.php#log-section');
         exit();
     }
@@ -167,8 +195,14 @@ $logEntries = getCheckinLogEntries($config);
  * @return array Array of usage statistics
  */
 function getUsageReport($config) {
+    if (!isset($config['LOG_PATHS']) || !isset($config['LOG_PATHS']['CHECKIN'])) {
+        error_log('Configuration error: LOG_PATHS[CHECKIN] not properly set');
+        return array();
+    }
+
     $checkInLog = $config['LOG_PATHS']['CHECKIN'];
     if (!file_exists($checkInLog)) {
+        error_log("Check-in log file not found at: $checkInLog");
         return array();
     }
 
