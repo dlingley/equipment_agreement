@@ -91,52 +91,50 @@ function sendAgreementEmail($email, $firstName, $lastName) {
         $message = "Dear $firstName $lastName,\n\n";
         $message .= "This email confirms that you have agreed to the Purdue Libraries Knowledge Lab User Agreement:\n\n";
 
-        $message .= "I hereby agree to the following conditions for use of the Knowledge Lab (the “Lab”) facilities and equipment.\n";
+        $message .= "I hereby agree to the following conditions for use of the Knowledge Lab (the “Lab”) facilities and equipment.\n\n";
 
-        $message .= "<strong>Conditions of Use and General Conduct</strong>\n";
-        $message .= "I will comply with Purdue University (\"Purdue\") and Purdue Libraries policies and procedures including, but not limited to Lab guidelines, signage, and instructions.\n\n";
+        $message .= "Conditions of Use and General Conduct\n";
+
+        $message .= "I will comply with Purdue University ("Purdue") and Purdue Libraries policies and procedures including, but not limited to Lab guidelines, signage, and instructions.\n\n";
         $message .= "The Knowledge Lab is a collection of equipment, tools, materials, and supplies intended to allow for exploration, creativity, and innovation. To maintain the privilege of use for all members of the Purdue community we ask that you respect the space, the items, and the other users. All Purdue community members who use the space agree to comply with all Knowledge Lab policies and Purdue University codes of conduct.\n";
-        $message .= "<ul>\n";
-        $message .= "<li>Keep the Knowledge Lab and everything within the facility clean and organized. If you take out tools and materials, return them to the correct location and clean up the area used. If equipment or a tool is broken or not functioning correctly, please notify staff immediately.</li>\n";
-        $message .= "<li>Be respectful to Knowledge Lab staff, other users of the Knowledge and towards its equipment at all times.</li>\n";
-        $message .= "<li>Staff are available to assist patrons with equipment use, understanding materials and processes, and talking through ideas and project concepts for you to complete the work yourself.</li>\n";
-        $message .= "<li>Staff have the right to refuse projects and material usage if they are in violation of Knowledge Lab policies.</li>\n";
-        $message .= "<li>Users are responsible for properly monitoring and labeling anything brought into the lab and the Knowledge Lab is not responsible for any lost, damaged, or stolen property.</li>\n";
-        $message .= "<li>Use of the Knowledge Lab and materials created will not be:\n";
-        $message .= "  <ul>\n";
-        $message .= "   <li>Prohibited by local, state, or federal law.</li>\n";
-        $message .= "   <li>Unsafe, harmful, dangerous, or pose an immediate or perceived threat to the well-being of others.</li>\n";
-        $message .= "   <li>Obscene or otherwise inappropriate for the University and Library environment.</li>\n";
-        $message .= "   <li>violation of intellectual property rights.</li>\n";
-        $message .= "  </ul>\n";
-        $message .= "</li>\n";
-        $message .= "</ul>\n\n";
 
-        $message .= "<strong>Knowledge Lab Access</strong>\n";
+        $message .= "1. Keep the Knowledge Lab and everything within the facility clean and organized. If you take out tools and materials, return them to the correct location and clean up the area used. If equipment or a tool is broken or not functioning correctly, please notify staff immediately.\n";
+        $message .= "2. Be respectful to Knowledge Lab staff, other users of the Knowledge and towards its equipment at all times.\n";
+        $message .= "3. Staff are available to assist patrons with equipment use, understanding materials and processes, and talking through ideas and project concepts for you to complete the work yourself.\n";
+        $message .= "4. Staff have the right to refuse projects and material usage if they are in violation of Knowledge Lab policies.\n";
+        $message .= "6. Users are responsible for properly monitoring and labeling anything brought into the lab and the Knowledge Lab is not responsible for any lost, damaged, or stolen property\n";
+        $message .= "7. Use of the Knowledge Lab and materials created will not be:\n";
+        $message .= "   a. Prohibited by local, state, or federal law.</li>\n";
+        $message .= "   b.Unsafe, harmful, dangerous, or pose an immediate or perceived threat to the well-being of others.</li>\n";
+        $message .= "   c. Obscene or otherwise inappropriate for the University and Library environment.</li>\n";
+        $message .= "   d. violation of intellectual property rights.</li>\n";
+
+
+        $message .= "Knowledge Lab Access\n";
         $message .= "The Knowledge Lab is open and free to those affiliated with Purdue. Always bring a valid Purdue ID to swipe in at the front desk, all first time users must fill out a release form. The Knowledge Lab is not open to the public. Outside guests may accompany members of the Purdue community but may not use any of the tools, equipment, or materials in the space. Guests under 18 years old must be accompanied by their parent or legal guardian at all times and may not be left alone in the Knowledge Lab.\n\n";
 
-        $message .= "<strong>Material Usage</strong>\n";
+        $message .= "Material Usage\n";
         $message .= "Materials available in the Knowledge Lab are a courtesy provided by Purdue University and are intended to be used in the lab. Please be respectful of the resources provided and avoid wasting consumable supplies and materials. We cannot guarantee the availability of any materials at any time. If a project requires a larger amount of materials that exceeds our monthly allotments, Knowledge Lab staff can provide you with information on recommended materials and suppliers. Our facility is a place of learning and exploration. The free materials in the Knowledge are not to be used for commercial purposes or mass production.\n\n";
 
-        $message .= "<strong>Copyright</strong>\n";
+        $message .= "Copyright\n";
         $message .= "The Knowledge Lab encourages innovation and creations of one's own design. Projects created in the Knowledge Lab must respect and comply with intellectual property laws at all times, including, but not limited to, trademarks, logos, and copyrighted designs.\n\n";
 
-        $message .= "<strong>Safety and Assumption of Risk</strong>\n";
+        $message .= "Safety and Assumption of Risk\n";
         $message .= "Use of the Lab facility, tools, equipment, and materials is entirely voluntary and optional. Such use involves inherent hazards, dangers, and risks. I hereby agree that I assume all responsibility for any risks of loss, damage, or personal injury that I may sustain and/or any loss or damage to property that I own, as a result of being engaged in Lab activities, whether caused by the negligence of the Lab personnel, equipment or otherwise.\n\n";
 
-        $message .= "<strong>Release of Liability</strong>\n";
+        $message .= "Release of Liability\n";
         $message .= "I hereby release and forever discharge Purdue University, the Board of Trustees of Purdue University, its members individually, and the officers, agents and employees of Purdue University from any and all claims, demands, rights and causes of action of whatever kind that I may have, caused by or arising from my use of the Lab facilities, tools, equipment, or materials regardless of whether or not caused in whole or part by the negligence or other fault of the parties to this agreement.\n\n";
 
-        $message .= "<strong>Indemnification</strong>\n";
+        $message .= "Indemnification\n";
         $message .= "I agree to indemnify and hold Purdue harmless from and against any and all losses, liabilities, damages, costs or expenses (including but not limited to reasonable attorneys' fees and other litigation costs and expenses) incurred by Purdue.\n\n";
 
-        $message .= "<strong>Consent to Medical Treatment</strong>\n";
+        $message .= "Consent to Medical Treatment\n";
         $message .= "I give permission for Purdue and its employees, volunteers, agents, representatives and emergency personnel to make necessary first aid decisions in the event of an accident, injury, or illness I may suffer during the use of the Lab. If I need medical treatment, I will be financially responsible for any costs incurred as a result of such treatment.\n\n";
 
-        $message .= "<strong>Miscellaneous</strong>\n";
-        $message .= "A. PURDUE EXPRESSLY DISCLAIMS ALL WARRANTIES OF ANY KIND, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, INCLUDING WITHOUT LIMITATION IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT WITH REGARD TO THE LAB, EQUIPMENT, TOOLS AND MATERIALS.\n\n";
-        $message .= "B. If any provision of this document is determined to be invalid for any reason, such invalidity shall not affect the validity of any other provisions, which other provisions shall remain in full force and effect as if this agreement had been executed with the invalid provision eliminated.\n\n";
-        $message .= "C. This agreement is entered into in Indiana and shall be governed by and construed in accordance with the substantive law (and not the law of conflicts) of the State of Indiana and applicable U.S. federal law. Courts of competent authority located in Tippecanoe County, Indiana shall have sole and exclusive jurisdiction of any action arising out of or in connection with the agreement, and such courts shall be the sole and exclusive venue for any such action.\n\n";
+        $message .= "Miscellaneous\n";
+        $message .= "A. PURDUE EXPRESSLY DISCLAIMS ALL WARRANTIES OF ANY KIND, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, INCLUDING WITHOUT LIMITATION IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT WITH REGARD TO THE LAB, EQUIPMENT, TOOLS AND MATERIALS.\n";
+        $message .= "B. If any provision of this document is determined to be invalid for any reason, such invalidity shall not affect the validity of any other provisions, which other provisions shall remain in full force and effect as if this agreement had been executed with the invalid provision eliminated.\n";
+        $message .= "C. This agreement is entered into in Indiana and shall be governed by and construed in accordance with the substantive law (and not the law of conflicts) of the State of Indiana and applicable U.S. federal law. Courts of competent authority located in Tippecanoe County, Indiana shall have sole and exclusive jurisdiction of any action arising out of or in connection with the agreement, and such courts shall be the sole and exclusive venue for any such action.\n";
 
         $message .= "Thank you for using the Knowledge Lab!\n";
         $message .= "Purdue University Libraries";
