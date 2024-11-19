@@ -241,7 +241,7 @@ endif;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="x-ua-compatible" content="IE=edge">
-    <title>Purdue Libraries Equipment Agreement</title>
+    <title>Purdue Libraries Knowledge Lab User Agreement</title>
     <link rel="stylesheet" href="styles.css">
     <?php if ($error): ?>
     <!-- Auto-refresh page after 5 seconds when there's an error -->
