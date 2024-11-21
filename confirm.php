@@ -91,21 +91,22 @@ function sendAgreementEmail($email, $firstName, $lastName) {
         $message = "Dear $firstName $lastName,\n\n";
         $message .= "This email confirms that you have agreed to the Purdue Libraries Knowledge Lab User Agreement:\n\n";
 
-        $message .= "I hereby agree to the following conditions for use of the Knowledge Lab (the “Lab”) facilities and equipment.\n";
+        $message .= "I hereby agree to the following conditions for use of the Knowledge Lab (the “Lab”) facilities and equipment.\n\n";
 
-        $message .= "Conditions of Use and General Conduct\n";
+        $message .= "Conditions of Use and General Conduct\n\n";
+
         $message .= "I will comply with Purdue University (\"Purdue\") and Purdue Libraries policies and procedures including, but not limited to Lab guidelines, signage, and instructions.\n\n";
         $message .= "The Knowledge Lab is a collection of equipment, tools, materials, and supplies intended to allow for exploration, creativity, and innovation. To maintain the privilege of use for all members of the Purdue community we ask that you respect the space, the items, and the other users. All Purdue community members who use the space agree to comply with all Knowledge Lab policies and Purdue University codes of conduct.\n";
-        $message .= "1. Keep the Knowledge Lab and everything within the facility clean and organized. If you take out tools and materials, return them to the correct location and clean up the area used. If equipment or a tool is broken or not functioning correctly, please notify staff immediately.\n";
-        $message .= "2. Be respectful to Knowledge Lab staff, other users of the Knowledge and towards its equipment at all times.\n";
-        $message .= "3. Staff are available to assist patrons with equipment use, understanding materials and processes, and talking through ideas and project concepts for you to complete the work yourself.\n";
-        $message .= "4.  Staff have the right to refuse projects and material usage if they are in violation of Knowledge Lab policies.\n";
-        $message .= "5. Users are responsible for properly monitoring and labeling anything brought into the lab and the Knowledge Lab is not responsible for any lost, damaged, or stolen property.\n";
-        $message .= "6. Use of the Knowledge Lab and materials created will not be:\n";
-        $message .= "   a. Prohibited by local, state, or federal law.\n";
-        $message .= "   b. Unsafe, harmful, dangerous, or pose an immediate or perceived threat to the well-being of others.\n";
-        $message .= "   c. Obscene or otherwise inappropriate for the University and Library environment.\n";
-        $message .= "   d. violation of intellectual property rights.\n\n";
+        $message .= "   1. Keep the Knowledge Lab and everything within the facility clean and organized. If you take out tools and materials, return them to the correct location and clean up the area used. If equipment or a tool is broken or not functioning correctly, please notify staff immediately.\n";
+        $message .= "   2. Be respectful to Knowledge Lab staff, other users of the Knowledge and towards its equipment at all times.\n";
+        $message .= "   3. Staff are available to assist patrons with equipment use, understanding materials and processes, and talking through ideas and project concepts for you to complete the work yourself.\n";
+        $message .= "   4.  Staff have the right to refuse projects and material usage if they are in violation of Knowledge Lab policies.\n";
+        $message .= "   5. Users are responsible for properly monitoring and labeling anything brought into the lab and the Knowledge Lab is not responsible for any lost, damaged, or stolen property.\n";
+        $message .= "   6. Use of the Knowledge Lab and materials created will not be:\n";
+        $message .= "       a. Prohibited by local, state, or federal law.\n";
+        $message .= "       b. Unsafe, harmful, dangerous, or pose an immediate or perceived threat to the well-being of others.\n";
+        $message .= "       c. Obscene or otherwise inappropriate for the University and Library environment.\n";
+        $message .= "       d. violation of intellectual property rights.\n\n";
         
         $message .= "Knowledge Lab Access\n";
         $message .= "The Knowledge Lab is open and free to those affiliated with Purdue. Always bring a valid Purdue ID to swipe in at the front desk, all first time users must fill out a release form. The Knowledge Lab is not open to the public. Outside guests may accompany members of the Purdue community but may not use any of the tools, equipment, or materials in the space. Guests under 18 years old must be accompanied by their parent or legal guardian at all times and may not be left alone in the Knowledge Lab.\n\n";
