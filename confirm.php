@@ -250,7 +250,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     // Check for existing agreement
     // $semester = $config['SEMESTER_END_DATE'];
     debugLog('Checking for existing agreement');
-    $note_text_nodes = $xpath->query("//user_note[note_text[contains(text(),'Agreed to Knowledge Lab User Agreement')]]");
+    $note_text_nodes = $xpath->query("//user_note[note_text[contains(text(),'Agreed to Knowldge Lab User Agreement')]]");
 
     if ($note_text_nodes->length == 0) {
         debugLog('No existing agreement found, creating new note');
@@ -284,7 +284,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
             $noteType = $putDoc->createElement("note_type", "CIRCULATION");
             $userNote->appendChild($noteType);
 
-            $noteText = $putDoc->createElement("note_text", "Agreed to Knowledge Lab User Agreement");
+            $noteText = $putDoc->createElement("note_text", "Agreed to Knowldge Lab User Agreement");
             $userNote->appendChild($noteText);
 
             $userViewable = $putDoc->createElement("user_viewable", "true");
