@@ -1,7 +1,10 @@
 <?php
 // ===== Session and Error Handling Setup =====
-// Start the session to maintain user data across pages
 session_start();
+
+// Set timezone to Eastern Time
+$config = include('config.php');
+date_default_timezone_set($config['TIMEZONE']);
 
 // Enable comprehensive error reporting for debugging
 error_reporting(E_ALL);
@@ -9,23 +12,25 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 
 // ===== Authentication Check =====
-// Verify that user has provided a Purdue ID through the previous form
-// If not, redirect back to the index page
 if (!isset($_SESSION['purdueid'])) {
+    // Log authentication failure
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "UNKNOWN,$timestamp,ERROR,AUTH_ERROR,No Purdue ID in session\n";
+    $checkInLog = $config['LOG_PATHS']['CHECKIN'];
+    file_put_contents($checkInLog, $logEntry, FILE_APPEND);
+    debugLog("Failed authentication attempt - no Purdue ID in session");
+    
     header("Location: index.php");
     exit();
 }
 
 // ===== Configuration Loading =====
-// Load application configuration settings
 $config = include('config.php');
 
-// Verify that the required API key is present in config
 if (!isset($config['ALMA_API_KEY'])) {
     die('API key not set in config.php.');
 }
 
-// Get Purdue ID from session
 $purdueId = $_SESSION['purdueid'];
 
 /**
@@ -36,6 +41,9 @@ $purdueId = $_SESSION['purdueid'];
  */
 function debugLog($message, $level = 'INFO') {
     global $config; // Add global keyword to access config
+    
+    // Ensure timezone is set before getting timestamp
+    date_default_timezone_set($config['TIMEZONE']);
     
     $logFile = $config['LOG_PATHS']['DEBUG'];
     $timestamp = date('Y-m-d H:i:s');
@@ -91,7 +99,7 @@ function sendAgreementEmail($email, $firstName, $lastName) {
         $message = "Dear $firstName $lastName,\n\n";
         $message .= "This email confirms that you have agreed to the Purdue Libraries Knowledge Lab User Agreement:\n\n";
 
-        $message .= "I hereby agree to the following conditions for use of the Knowledge Lab (the “Lab”) facilities and equipment.\n\n";
+        $message .= "I hereby agree to the following conditions for use of the Knowledge Lab (the \"Lab\") facilities and equipment.\n\n";
 
         $message .= "Conditions of Use and General Conduct\n\n";
 
@@ -186,6 +194,12 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     if(curl_errno($cr)) {
         $error_msg = 'Curl error: ' . curl_error($cr);
         debugLog($error_msg, 'ERROR');
+        
+        // Log API error to check-in log
+        $timestamp = date('Y-m-d H:i:s');
+        $logEntry = "$purdueId,$timestamp,ERROR,API_ERROR," . str_replace(',', ';', curl_error($cr)) . "\n";
+        file_put_contents($config['LOG_PATHS']['CHECKIN'], $logEntry, FILE_APPEND);
+        
         curl_close($cr);
         return array('error' => $error_msg);
     }
@@ -207,8 +221,20 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
                 $errorMessage = "Invalid Purdue ID or user not found";
             }
             debugLog('Parsed error message: ' . $errorMessage, 'ERROR');
+            
+            // Log invalid ID to check-in log
+            $timestamp = date('Y-m-d H:i:s');
+            $logEntry = "$purdueId,$timestamp,ERROR,INVALID_ID," . str_replace(',', ';', $errorMessage) . "\n";
+            file_put_contents($config['LOG_PATHS']['CHECKIN'], $logEntry, FILE_APPEND);
+            
             return array('error' => $errorMessage, 'xml_response' => $response);
         }
+        
+        // Log generic invalid ID error
+        $timestamp = date('Y-m-d H:i:s');
+        $logEntry = "$purdueId,$timestamp,ERROR,INVALID_ID,User not found in Alma\n";
+        file_put_contents($config['LOG_PATHS']['CHECKIN'], $logEntry, FILE_APPEND);
+        
         return array('error' => "Invalid Purdue ID or user not found", 'xml_response' => $response);
     }
 
@@ -216,6 +242,12 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     if (!$response || !simplexml_load_string($response)) {
         $error_msg = 'Invalid XML response';
         debugLog($error_msg, 'ERROR');
+        
+        // Log invalid response to check-in log
+        $timestamp = date('Y-m-d H:i:s');
+        $logEntry = "$purdueId,$timestamp,ERROR,INVALID_RESPONSE,Malformed XML response from API\n";
+        file_put_contents($config['LOG_PATHS']['CHECKIN'], $logEntry, FILE_APPEND);
+        
         return array('error' => $error_msg, 'xml_response' => $response);
     }
 
@@ -244,6 +276,47 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     $email = $emailNode ? $emailNode->nodeValue : '';
     $phone = $phoneNode ? $phoneNode->nodeValue : '';
     $userGroup = $userGroupNode ? $userGroupNode->nodeValue : '';
+
+    // ===== Visit Logging =====
+    // Check for recent check-ins and get latest visit count
+    $recentCheckIn = false;
+    if (file_exists($config['LOG_PATHS']['CHECKIN'])) {
+        $lastCheckins = array_reverse(file($config['LOG_PATHS']['CHECKIN']));
+        foreach ($lastCheckins as $line) {
+            $parts = explode(",", trim($line));
+            if ($parts[0] === $purdueId) {
+                $lastTime = strtotime($parts[1]);
+                if (time() - $lastTime < 30) {
+                    $recentCheckIn = true;
+                    debugLog("Skipping duplicate check-in for user: $purdueId (within 30 seconds)");
+                    break;
+                }
+                break;
+            }
+        }
+    }
+
+    if (!$recentCheckIn) {
+        // Get the latest visit count from checkin_log
+        $visitCount = 1; // Default to 1 if no previous visits
+        $checkInLog = $config['LOG_PATHS']['CHECKIN'];
+        if (file_exists($checkInLog)) {
+            $lastCheckins = array_reverse(file($checkInLog));
+            foreach ($lastCheckins as $line) {
+                $parts = explode(",", trim($line));
+                if ($parts[0] === $purdueId) {
+                    $visitCount = intval($parts[3]) + 1; // Increment the last visit count
+                    break;
+                }
+            }
+        }
+        
+        // Log successful check-in with actual user group
+        $timestamp = date('Y-m-d H:i:s');
+        $logEntry = "$purdueId,$timestamp,$userGroup,$visitCount\n";
+        file_put_contents($checkInLog, $logEntry, FILE_APPEND);
+        debugLog("Logged check-in for user: $purdueId with userGroup: $userGroup (Visit #$visitCount)");
+    }
 
     // Check for existing agreement
     // $semester = $config['SEMESTER_END_DATE'];
@@ -276,7 +349,7 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
 
             // Create new agreement note
             $userNote = $putDoc->createElement("user_note");
-            $userNote->setAttribute("segment_type", "External");
+            $userNote->setAttribute("segment_type", "Internal");
             $userNotes->appendChild($userNote);
 
             $noteType = $putDoc->createElement("note_type", "CIRCULATION");
@@ -315,6 +388,12 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
             if(curl_errno($cr)) {
                 $error_msg = 'Curl error during PUT: ' . curl_error($cr);
                 debugLog($error_msg, 'ERROR');
+
+                // Log agreement update error
+                $timestamp = date('Y-m-d H:i:s');
+                $logEntry = "$purdueId,$timestamp,ERROR,AGREEMENT_UPDATE," . str_replace(',', ';', curl_error($cr)) . "\n";
+                file_put_contents($config['LOG_PATHS']['CHECKIN'], $logEntry, FILE_APPEND);
+
                 return array('error' => $error_msg, 'xml_response' => $response);
             }
 
@@ -325,8 +404,14 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
             curl_close($cr);
 
             if ($http_code !== 200) {
+                // Log agreement update failure
+                $timestamp = date('Y-m-d H:i:s');
+                $logEntry = "$purdueId,$timestamp,ERROR,AGREEMENT_UPDATE,HTTP Status $http_code\n";
+                file_put_contents($config['LOG_PATHS']['CHECKIN'], $logEntry, FILE_APPEND);
+
                 return array('error' => 'Failed to update user note. Please try again later.', 'xml_response' => $response);
             }
+
 
             // Send confirmation email
             if (!sendAgreementEmail($email, $firstName, $lastName, $semester)) {
@@ -419,13 +504,6 @@ if (isset($result['error'])) {
         $agreementExists = false;
     }
 
-    // Log successful check-ins
-    if ($agreementExists || isset($result['agreement_created'])) {
-        $checkInLog = 'logs/checkin_log.csv';
-        $timestamp = date('Y-m-d H:i:s');
-        $logEntry = "$purdueId,$timestamp,$userGroup\n";
-        file_put_contents($checkInLog, $logEntry, FILE_APPEND);
-    }
 }
 ?>
 
@@ -438,9 +516,36 @@ if (isset($result['error'])) {
     <title>Confirm Your Information</title>
     <link rel="stylesheet" href="styles.css">
     <?php if (($agreementExists && !isset($error)) || isset($error)): ?>
-    <meta http-equiv="refresh" content="5;url=index.php">
+    <meta http-equiv="refresh" content="1;url=index.php">
     <?php endif; ?>
     <style>
+        /* Previous styles remain unchanged */
+        .agreement-section {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .agreement-section h2 {
+            color: #212529;
+            margin-top: 2rem;
+        }
+        .agreement-section p, .agreement-section ul {
+            color: #495057;
+            line-height: 1.6;
+        }
+        .agreement-section ul {
+            padding-left: 2rem;
+        }
+        .final-statement {
+            font-weight: bold;
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
         /* Styles for error messages and containers */
         .error-container {
             max-width: 800px;
@@ -536,6 +641,7 @@ if (isset($result['error'])) {
     <!-- Header with logo -->
     <div class="header">
         <img src="LSIS_H-Full-RGB_1.jpg" alt="Purdue Libraries Logo" class="logo">
+        <h1>Knowledge Lab User Agreement</h1>
     </div>
 
     <?php if (isset($error) && $error): ?>
@@ -569,12 +675,68 @@ if (isset($result['error'])) {
                 <p>Agreement Details: <?php echo htmlspecialchars($noteText); ?></p>
                 <div class="thank-you-message">
                     <h3>Thank you for using the Knowledge Lab!</h3>
-                    <p>You will be redirected to the home page in 5 seconds...</p>
+                    <p>You will be redirected to the home page in 1 second...</p>
                 </div>
             </div>
         <?php else: ?>
+            <!-- Agreement Content Section -->
+            <section class="agreement-section">
+                <h2>Please scroll to the bottom and click "I Agree"</h2>
+                <h3>You will also receive a copy of this agreement via email.</h3>
+                <p>I hereby agree to the following conditions for use of the Knowledge Lab (the "Lab") facilities and equipment.</p>
+
+                <h2>Conditions of Use and General Conduct</h2>
+                <p>I will comply with Purdue University ("Purdue") and Purdue Libraries policies and procedures including, but not limited to Lab guidelines, signage, and instructions.</p>
+                
+                <p>The Knowledge Lab is a collection of equipment, tools, materials, and supplies intended to allow for exploration, creativity, and innovation. To maintain the privilege of use for all members of the Purdue community we ask that you respect the space, the items, and the other users. All Purdue community members who use the space agree to comply with all Knowledge Lab policies and Purdue University codes of conduct.</p>
+
+                <ul>
+                    <li>Keep the Knowledge Lab and everything within the facility clean and organized. If you take out tools and materials, return them to the correct location and clean up the area used. If equipment or a tool is broken or not functioning correctly, please notify staff immediately.</li>
+                    <li>Be respectful to Knowledge Lab staff, other users of the Knowledge and towards its equipment at all times.</li>
+                    <li>Staff are available to assist patrons with equipment use, understanding materials and processes, and talking through ideas and project concepts for you to complete the work yourself.</li>
+                    <li>Staff have the right to refuse projects and material usage if they are in violation of Knowledge Lab policies.</li>
+                    <li>Users are responsible for properly monitoring and labeling anything brought into the lab and the Knowledge Lab is not responsible for any lost, damaged, or stolen property.</li>
+                </ul>
+
+                <p>Use of the Knowledge Lab and materials created will not be:</p>
+                <ul>
+                    <li>Prohibited by local, state, or federal law.</li>
+                    <li>Unsafe, harmful, dangerous, or pose an immediate or perceived threat to the well-being of others.</li>
+                    <li>Obscene or otherwise inappropriate for the University and Library environment.</li>
+                    <li>In violation of intellectual property rights.</li>
+                </ul>
+
+                <h2>Knowledge Lab Access</h2>
+                <p>The Knowledge Lab is open and free to those affiliated with Purdue. Always bring a valid Purdue ID to swipe in at the front desk, all first time users must fill out a release form. The Knowledge Lab is not open to the public. Outside guests may accompany members of the Purdue community but may not use any of the tools, equipment, or materials in the space. Guests under 18 years old must be accompanied by their parent or legal guardian at all times and may not be left alone in the Knowledge Lab.</p>
+
+                <h2>Material Usage</h2>
+                <p>Materials available in the Knowledge Lab are a courtesy provided by Purdue University and are intended to be used in the lab. Please be respectful of the resources provided and avoid wasting consumable supplies and materials. We cannot guarantee the availability of any materials at any time. If a project requires a larger amount of materials that exceeds our monthly allotments, Knowledge Lab staff can provide you with information on recommended materials and suppliers. Our facility is a place of learning and exploration. The free materials in the Knowledge are not to be used for commercial purposes or mass production.</p>
+
+                <h2>Copyright</h2>
+                <p>The Knowledge Lab encourages innovation and creations of one's own design. Projects created in the Knowledge Lab must respect and comply with intellectual property laws at all times, including, but not limited to, trademarks, logos, and copyrighted designs.</p>
+
+                <h2>Safety and Assumption of Risk</h2>
+                <p>Use of the Lab facility, tools, equipment, and materials is entirely voluntary and optional. Such use involves inherent hazards, dangers, and risks. I hereby agree that I assume all responsibility for any risks of loss, damage, or personal injury that I may sustain and/or any loss or damage to property that I own, as a result of being engaged in Lab activities, whether caused by the negligence of the Lab personnel, equipment or otherwise.</p>
+
+                <h2>Release of Liability</h2>
+                <p>I hereby release and forever discharge Purdue University, the Board of Trustees of Purdue University, its members individually, and the officers, agents and employees of Purdue University from any and all claims, demands, rights and causes of action of whatever kind that I may have, caused by or arising from my use of the Lab facilities, tools, equipment, or materials regardless of whether or not caused in whole or part by the negligence or other fault of the parties to this agreement.</p>
+
+                <h2>Indemnification</h2>
+                <p>I agree to indemnify and hold Purdue harmless from and against any and all losses, liabilities, damages, costs or expenses (including but not limited to reasonable attorneys' fees and other litigation costs and expenses) incurred by Purdue.</p>
+
+                <h2>Consent to Medical Treatment</h2>
+                <p>I give permission for Purdue and its employees, volunteers, agents, representatives and emergency personnel to make necessary first aid decisions in the event of an accident, injury, or illness I may suffer during the use of the Lab. If I need medical treatment, I will be financially responsible for any costs incurred as a result of such treatment.</p>
+
+                <h2>Miscellaneous</h2>
+                <p>A. PURDUE EXPRESSLY DISCLAIMS ALL WARRANTIES OF ANY KIND, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, INCLUDING WITHOUT LIMITATION IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT WITH REGARD TO THE LAB, EQUIPMENT, TOOLS AND MATERIALS.</p>
+                <p>B. If any provision of this document is determined to be invalid for any reason, such invalidity shall not affect the validity of any other provisions, which other provisions shall remain in full force and effect as if this agreement had been executed with the invalid provision eliminated.</p>
+                <p>C. This agreement is entered into in Indiana and shall be governed by and construed in accordance with the substantive law (and not the law of conflicts) of the State of Indiana and applicable U.S. federal law. Courts of competent authority located in Tippecanoe County, Indiana shall have sole and exclusive jurisdiction of any action arising out of or in connection with the agreement, and such courts shall be the sole and exclusive venue for any such action.</p>
+
+                <p class="final-statement">I hereby warrant that I am eighteen (18) years old or more and competent to contract in my own name or, if I am less than eighteen years old, that my parent or guardian has signed this release form below. This release is binding on me and my heirs, assigns and personal representatives.</p>
+            </section>
+
             <!-- Confirmation form for new agreement -->
-            <h1>Confirm Your Information</h1>
+            <h2>Confirm Your Information</h2>
             <form method="POST" id="confirmation_form">
                 <div class="form-section">
                     <div class="form-group">
@@ -598,7 +760,7 @@ if (isset($result['error'])) {
                         <input type="text" id="purdueid" name="purdueid" value="<?php echo htmlspecialchars($purdueId); ?>" readonly>
                     </div>
                     <div class="button-group">
-                        <input type="submit" name="confirm" value="Confirm">
+                        <input type="submit" name="confirm" value="I Agree">
                         <input type="reset" name="cancel" value="Cancel" onclick="window.location='index.php'; return false;">
                     </div>
                 </div>

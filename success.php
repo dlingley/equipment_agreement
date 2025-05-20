@@ -2,14 +2,18 @@
 // ===== Session Management =====
 // Start session to maintain user state
 session_start();
+
+// Load config and set timezone
+$config = include('config.php');
+date_default_timezone_set($config['TIMEZONE']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Auto-redirect to homepage after 5 seconds -->
-    <meta http-equiv="refresh" content="5;url=index.php">
+    <!-- Auto-redirect to homepage after 1 second -->
+    <meta http-equiv="refresh" content="1;url=index.php">
     <meta http-equiv="x-ua-compatible" content="IE=edge">
     <title>Success</title>
     <!-- Include main stylesheet -->
@@ -58,7 +62,7 @@ session_start();
     <div class="success-container">
         <!-- Main success message -->
         <div class="success-message">
-            Your Equipment Agreement has been successfully submitted.
+            Your User Agreement has been successfully submitted.
         </div>
         <!-- Thank you message -->
         <div class="thank-you-message">
@@ -66,7 +70,7 @@ session_start();
         </div>
         <!-- Redirect notification -->
         <div class="redirect-message">
-            You will be redirected to the homepage in 5 seconds...
+            You will be redirected to the homepage in 1 second...
         </div>
     </div>
 </body>

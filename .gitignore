@@ -2,3 +2,8 @@
 /logs
 config.php
 ._config.php
+/.venv
+/.venv/
+/.env   
+._fix_agreements.py
+._admin.php

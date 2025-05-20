@@ -11,8 +11,19 @@ ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
 session_set_cookie_params([
     'lifetime' => $config['SESSION_CONFIG']['TIMEOUT'],
     'secure' => $config['SESSION_CONFIG']['SECURE'],
-    'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY']
+    'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY'],
+    'samesite' => 'Strict'
 ]);
+
+// Initialize last activity time if not set
+if (!isset($_SESSION['last_activity'])) {
+    $_SESSION['last_activity'] = time();
+}
+
+// Initialize session regeneration time if not set
+if (!isset($_SESSION['last_regeneration'])) {
+    $_SESSION['last_regeneration'] = time();
+}
 
 // ===== Authentication Check =====
 // If user is already logged in, redirect them to their appropriate dashboard
@@ -46,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Set session variables for admin user
         $_SESSION['logged_in'] = true;
         $_SESSION['user_type'] = 'admin';
+        $_SESSION['last_activity'] = time();
+        $_SESSION['last_regeneration'] = time();
         header('Location: admin.php');
         exit();
     }
@@ -54,6 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Set session variables for regular user
         $_SESSION['logged_in'] = true;
         $_SESSION['user_type'] = 'user';
+        $_SESSION['last_activity'] = time();
+        $_SESSION['last_regeneration'] = time();
         header('Location: index.php');
         exit();
     }
@@ -68,8 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Purdue Libraries Equipment Agreement</title>
+    <title>Login - Purdue Libraries Knowledge Lab User Agreement</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="session.js"></script>
     <style>
         /* Styles for login form layout and appearance */
         .login-form {

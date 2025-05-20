@@ -1,0 +1,41 @@
+# Equipment Agreement Log Management - Cron Setup Instructions
+
+To set up automated log management, add the following line to your crontab:
+
+# Run log management daily at 2 AM
+0 2 * * * /Volumes/alma$/equipment_agreement/manage_logs.sh
+
+To install the cron job:
+
+1. Open your crontab for editing:
+   crontab -e
+
+2. Add the above line to the file
+
+3. Save and exit the editor
+
+The script will:
+- Rotate logs that exceed 10MB in size
+- Keep up to 5 backup files
+- Remove archived logs older than 30 days
+- Maintain a separate manage_logs.log file for tracking the rotation process
+- Keep the manage_logs.log file from growing too large by retaining only the last 1000 lines
+
+Log Management Strategy:
+- Debug logs use copy-truncate strategy to avoid file handle issues
+- Check-in logs use monthly consolidation to preserve historical data
+- All archived logs are organized by month for easy access
+- Calendar view and statistics in admin.php will work seamlessly with both current and archived logs
+
+To modify configuration:
+1. Edit manage_logs.sh to change:
+   - MAX_SIZE (default: 10MB)
+   - MAX_BACKUPS (default: 5)
+   - RETENTION_DAYS (default: 30)
+
+2. Or run manually with different parameters:
+   ./manage_logs.sh --max-size 20 --max-backups 10 --retention-days 60
+
+Archived logs are stored in:
+- /path/to/logs/archives/debug_YYYYMMDD_HHMMSS.log.gz (for debug logs)
+- /path/to/logs/archives/checkin_YYYY_MM.csv (for check-in logs)

@@ -1,0 +1,136 @@
+# Project Intelligence Rules
+
+## Coding Patterns
+
+### Time Management
+- Always use America/New_York timezone
+- Set timezone via configuration system
+- Use timezone-aware logging throughout
+- Format timestamps consistently in logs
+
+### Security Practices
+- Use secure cookie settings for sessions
+- Enable HTTP-only flags for cookies
+- Set SameSite=Strict for cookies
+- Implement timeout for sessions
+- Validate all user inputs
+
+### Configuration Management
+- Move sensitive data to environment variables
+- Use central configuration object
+- Implement fallback mechanisms
+- Follow secure storage practices
+
+### Logging Conventions
+- Use custom Logger class for all logging
+- Implement multiple log paths with fallbacks
+- Include proper context in log messages
+- Enable debug mode through configuration
+
+## Project Preferences
+
+### Code Organization
+- Clear separation of concerns
+- Consistent error handling
+- Centralized configuration
+- Modular components
+
+### File Structure
+- Core PHP files in root
+- Assets in appropriate directories
+- Configuration in secure location
+- Logs in dedicated directory
+
+### Documentation
+- Maintain comprehensive memory bank
+- Update documentation after changes
+- Include context in commit messages
+- Document security considerations
+
+### Error Handling
+- Use hierarchical error approach
+- Implement proper logging
+- Provide user-friendly messages
+- Maintain debug information
+
+## Implementation Patterns
+
+### Form Processing
+- Validate all inputs server-side
+- Implement CSRF protection
+- Provide clear error messages
+- Handle success states properly
+
+### Session Management
+- Verify session on each request
+- Implement proper timeouts
+- Use secure cookie settings
+- Handle expired sessions gracefully
+
+### Authentication
+- Implement role-based access
+- Validate credentials securely
+- Handle login/logout properly
+- Track session state
+
+### API Integration
+- Secure API key storage
+- Implement error handling
+- Validate responses
+- Handle timeouts properly
+
+## User Interface
+
+### Form Design
+- Clear, intuitive layout
+- Proper error display
+- Success confirmation
+- Mobile responsiveness
+
+### Error Display
+- User-friendly messages
+- Clear error formatting
+- Proper error context
+- Automatic refresh where appropriate
+
+## Testing Guidelines
+
+### Security Testing
+- Verify session security
+- Test input validation
+- Check error handling
+- Validate API security
+
+### Functionality Testing
+- Test core features
+- Verify form processing
+- Check error handling
+- Validate success paths
+
+## Version Control
+
+### Commit Messages
+- Clear, descriptive messages
+- Reference related issues
+- Include context
+- Document security changes
+
+### Branch Management
+- Feature branches
+- Security patches
+- Documentation updates
+- Version tagging
+
+## Deployment
+
+### Configuration
+- Secure environment setup
+- Proper file permissions
+- Configuration validation
+- Logging setup
+
+### Monitoring
+- Error tracking
+- Performance monitoring
+- Security alerts
+- Usage statistics

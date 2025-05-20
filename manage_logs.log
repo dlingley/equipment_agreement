@@ -1,0 +1,4 @@
+2025-05-20 10:11:48 Starting log management...
+[2025-05-20 10:11:54] [WARNING] Log file does not exist: debug.log
+[2025-05-20 10:11:54] [WARNING] Log file does not exist: checkin.log
+2025-05-20 10:11:55 Log management completed successfully
