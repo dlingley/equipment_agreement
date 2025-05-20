@@ -89,18 +89,35 @@ function handleSleep() {
 function refreshSession() {
     fetch(KEEPALIVE_URL, {
         method: 'POST',
-        credentials: 'same-origin'
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        cache: 'no-cache'
     })
     .then(response => {
+        // First check if response is ok
         if (!response.ok) {
-            console.error('Session refresh failed:', response.status);
             // If session is invalid, reload the page to trigger login redirect
             if (response.status === 401) {
+                console.warn('Session expired, reloading page...');
                 window.location.reload();
+                return;
             }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        // Try to parse the JSON response
+        return response.json();
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            console.debug('Session refreshed successfully at:', new Date(data.timestamp * 1000).toISOString());
+        } else {
+            console.warn('Session refresh returned unexpected status:', data.status);
         }
     })
     .catch(error => {
         console.error('Error refreshing session:', error);
+        // Don't clear interval on network errors - will retry on next interval
     });
 }

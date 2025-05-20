@@ -357,7 +357,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['action']) && $_GET['action'] === 'get_month_data') {
     if (isset($_GET['month'])) {
         header('Content-Type: application/json');
-        echo json_encode(getDailyUsageData($config, $_GET['month']));
+        $data = getDailyUsageData($config, $_GET['month']);
+        // Add debug info
+        error_log("Returning data for month: " . $_GET['month'] . ", Data: " . print_r($data, true));
+        echo json_encode($data);
         exit();
     }
 }
@@ -781,6 +784,24 @@ $graphData = array(
         .heat-3 { background-color: #fd8d3c; }
         .heat-4 { background-color: #e6550d; }
         .heat-5 { background-color: #a63603; }
+        
+        /* Error and loading message styles */
+        .error-message {
+            margin: 10px 0;
+            padding: 10px 15px;
+            background-color: #fff3f3;
+            border: 1px solid #ffcdd2;
+            border-radius: 4px;
+            color: #d32f2f;
+        }
+        
+        .loading-indicator {
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
@@ -988,25 +1009,82 @@ $graphData = array(
         // Calendar functionality
         let currentMonth = '<?php echo date('Y-m'); ?>';
         let dailyData = <?php 
-            $initialData = getDailyUsageData($config);
-            error_log('Initial daily data: ' . print_r($initialData, true));
+            $initialData = array();
+            try {
+                if (!isset($config['LOG_PATHS']) || !isset($config['LOG_PATHS']['CHECKIN'])) {
+                    error_log('ERROR: Missing required LOG_PATHS configuration');
+                    $initialData = array();
+                } else {
+                    $initialData = getDailyUsageData($config);
+                    error_log('Initial daily data: ' . print_r($initialData, true));
+                }
+            } catch (Exception $e) {
+                error_log('Error getting initial data: ' . $e->getMessage());
+                $initialData = array();
+            }
             echo json_encode($initialData);
         ?>;
 
+        // Ensure Chart.js is loaded before initializing
+        function ensureChartJsLoaded() {
+            return new Promise((resolve, reject) => {
+                if (window.Chart) {
+                    resolve(window.Chart);
+                } else {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                    script.onload = () => resolve(window.Chart);
+                    script.onerror = () => reject(new Error('Failed to load Chart.js'));
+                    document.head.appendChild(script);
+                }
+            });
+        }
+
         // Make sure the script runs after DOM is fully loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize calendar
-            updateCalendar();
-            
-            // Initialize usage graph using Chart.js
-            initializeGraph();
-            
-            // Add event listeners for buttons instead of using inline onclick
+        document.addEventListener('DOMContentLoaded', async function() {
             try {
+                // Force enable console logging
+                localStorage.setItem('debug', 'true');
+                
                 // Enhanced debug logging
                 console.log('%c=== Debug Information ===', 'background: #ff0; color: #000; font-weight: bold;');
                 console.log('Calendar Data:', dailyData);
                 console.log('Current Month:', currentMonth);
+
+                // Check if dailyData is empty or invalid
+                if (!dailyData || Object.keys(dailyData).length === 0) {
+                    console.log('No initial data, fetching current month data...');
+                    try {
+                        dailyData = await fetchMonthData(currentMonth);
+                    } catch (error) {
+                        console.error('Failed to fetch initial month data:', error);
+                        // Show error message on page
+                        const calendarSection = document.querySelector('.calendar-section');
+                        if (calendarSection) {
+                            const errorDiv = document.createElement('div');
+                            errorDiv.className = 'error-message';
+                            errorDiv.style.color = 'red';
+                            errorDiv.style.padding = '10px';
+                            errorDiv.textContent = 'Failed to load calendar data. Please try refreshing the page.';
+                            calendarSection.insertBefore(errorDiv, calendarSection.firstChild);
+                        }
+                    }
+                }
+
+                // Initialize calendar with error handling
+                try {
+                    updateCalendar();
+                } catch (error) {
+                    console.error('Error updating calendar:', error);
+                }
+                
+                // Initialize usage graph using Chart.js with error handling
+                try {
+                    await ensureChartJsLoaded();
+                    initializeGraph();
+                } catch (error) {
+                    console.error('Error initializing graph:', error);
+                }
                 
                 // Get references to buttons and log their status
                 const logSection = document.querySelector('.log-section .log-controls');
@@ -1093,26 +1171,88 @@ $graphData = array(
         }
         
         async function fetchMonthData(monthStr) {
+            console.log('Fetching data for month:', monthStr);
+
+            // Add loading indicator
+            const calendarGrid = document.querySelector('.calendar-grid');
+            if (calendarGrid) {
+                calendarGrid.style.opacity = '0.5';
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'loading-indicator';
+                loadingDiv.style.position = 'absolute';
+                loadingDiv.style.top = '50%';
+                loadingDiv.style.left = '50%';
+                loadingDiv.style.transform = 'translate(-50%, -50%)';
+                loadingDiv.textContent = 'Loading...';
+                calendarGrid.parentElement.appendChild(loadingDiv);
+            }
+
             try {
-                console.log('Fetching data for month:', monthStr);
+                // First try to ping keepalive to ensure session is active
+                try {
+                    await fetch('keepalive.php');
+                } catch (error) {
+                    console.warn('Keepalive check failed:', error);
+                    // Continue anyway since this is not critical
+                }
+                
                 const response = await fetch(`admin.php?action=get_month_data&month=${monthStr}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
                 console.log('Received month data:', data);
+
+                // Validate data structure
+                if (!data || typeof data !== 'object') {
+                    throw new Error('Invalid data format received');
+                }
+
                 return data;
             } catch (error) {
                 console.error('Error fetching month data:', error);
+                // Show error message to user
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.style.color = 'red';
+                errorDiv.style.padding = '10px';
+                errorDiv.textContent = `Failed to load data for ${monthStr}. ${error.message}`;
+                const calendarSection = document.querySelector('.calendar-section');
+                if (calendarSection) {
+                    calendarSection.insertBefore(errorDiv, calendarSection.firstChild);
+                }
                 return {};
+            } finally {
+                // Remove loading indicator
+                const loadingIndicator = document.querySelector('.loading-indicator');
+                if (loadingIndicator) {
+                    loadingIndicator.remove();
+                }
+                if (calendarGrid) {
+                    calendarGrid.style.opacity = '1';
+                }
             }
         }
 
         function updateCalendar(monthStr = currentMonth) {
-            const [year, month] = monthStr.split('-');
-            const date = new Date(year, month - 1);
-            
-            // Update calendar title
+            try {
+                if (!monthStr || typeof monthStr !== 'string' || !monthStr.match(/^\d{4}-\d{2}$/)) {
+                    throw new Error('Invalid month format');
+                }
+
+                const [year, month] = monthStr.split('-');
+                const date = new Date(year, month - 1);
+
+                if (isNaN(date.getTime())) {
+                    throw new Error('Invalid date');
+                }
+                
+                console.log('Calendar data for month:', {
+                    month: monthStr,
+                    data: dailyData
+                });
+                
+                // Update calendar title
             document.getElementById('calendar-title').textContent = 
                 date.toLocaleString('default', { month: 'long', year: 'numeric' });
 
