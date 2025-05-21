@@ -3,21 +3,54 @@
 // Load configuration first
 $config = require 'config.php';
 
-// Enable error reporting for debugging
+// Configure error handling
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0); // Disable HTML error output
+ini_set('log_errors', 1);
+
+// Ensure no output has been sent
+if (headers_sent($filename, $linenum)) {
+    error_log("Headers already sent in $filename on line $linenum");
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Internal server error'
+    ]);
+    exit();
+}
 
 // Set CORS headers for security - only allow from our domain
-$allowed_origin = 'https://webapps.lib.purdue.edu';
+$allowed_origins = [
+    'https://webapps.lib.purdue.edu',
+    'http://localhost',
+    'http://127.0.0.1'
+];
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
 
-if ($origin === $allowed_origin) {
+// Check if origin is allowed
+$origin_is_allowed = false;
+foreach ($allowed_origins as $allowed) {
+    if (strpos($origin, $allowed) === 0) {
+        $origin_is_allowed = true;
+        break;
+    }
+}
+
+if ($origin_is_allowed) {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Allow-Methods: POST, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type');
+    error_log('Access granted to origin: ' . $origin);
 } else {
     error_log('Invalid origin attempted access: ' . $origin);
+    header('Content-Type: application/json');
+    http_response_code(403);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Invalid origin'
+    ]);
+    exit();
 }
 
 // Handle preflight OPTIONS request

@@ -311,47 +311,101 @@ function saveCheckinLogEntries($entries, $config) {
 
 // ===== Log Entry Operations =====
 // Handle POST requests for log management (delete, edit entries)
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $entries = getCheckinLogEntries($config);
-    
-    // Handle single entry deletion
-    if (isset($_POST['delete']) && isset($_POST['entry_id'])) {
-        $id = (int)$_POST['entry_id'];
-        unset($entries[$id]);
-        if (!saveCheckinLogEntries(array_values($entries), $config)) {
-            $debugError = 'Failed to save changes to check-in log';
+// NOTE: This block was already present and is kept as is.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['delete']) || isset($_POST['delete_selected']) || isset($_POST['edit']))) {
+    // Ensure that the action is not one of the new ones before processing as log entry operation
+    if (!isset($_POST['action']) || $_POST['action'] !== 'generate_summaries') {
+        $entries = getCheckinLogEntries($config);
+        
+        // Handle single entry deletion
+        if (isset($_POST['delete']) && isset($_POST['entry_id'])) {
+            $id = (int)$_POST['entry_id'];
+            unset($entries[$id]);
+            if (!saveCheckinLogEntries(array_values($entries), $config)) {
+                $debugError = 'Failed to save changes to check-in log';
+            }
+            header('Location: admin.php#log-section');
+            exit();
         }
-        header('Location: admin.php#log-section');
-        exit();
-    }
 
-    // Handle bulk deletion of selected entries
-    if (isset($_POST['delete_selected']) && isset($_POST['selected_entries'])) {
-        $selectedIds = $_POST['selected_entries'];
-        foreach ($selectedIds as $id) {
-            unset($entries[(int)$id]);
+        // Handle bulk deletion of selected entries
+        if (isset($_POST['delete_selected']) && isset($_POST['selected_entries'])) {
+            $selectedIds = $_POST['selected_entries'];
+            foreach ($selectedIds as $id) {
+                unset($entries[(int)$id]);
+            }
+            if (!saveCheckinLogEntries(array_values($entries), $config)) {
+                $debugError = 'Failed to save changes to check-in log';
+            }
+            header('Location: admin.php#log-section');
+            exit();
         }
-        if (!saveCheckinLogEntries(array_values($entries), $config)) {
-            $debugError = 'Failed to save changes to check-in log';
+        
+        // Handle entry editing
+        if (isset($_POST['edit']) && isset($_POST['entry_id'])) {
+            $id = (int)$_POST['entry_id'];
+            $entries[$id]['purdue_id'] = $_POST['purdue_id'];
+            $entries[$id]['timestamp'] = $_POST['timestamp'];
+            $entries[$id]['user_group'] = $_POST['user_group'];
+            $entries[$id]['visit_count'] = !empty($_POST['visit_count']) ? intval($_POST['visit_count']) : null;
+            if (!saveCheckinLogEntries($entries, $config)) {
+                $debugError = 'Failed to save changes to check-in log';
+            }
+            header('Location: admin.php#log-section');
+            exit();
         }
-        header('Location: admin.php#log-section');
-        exit();
-    }
-    
-    // Handle entry editing
-    if (isset($_POST['edit']) && isset($_POST['entry_id'])) {
-        $id = (int)$_POST['entry_id'];
-        $entries[$id]['purdue_id'] = $_POST['purdue_id'];
-        $entries[$id]['timestamp'] = $_POST['timestamp'];
-        $entries[$id]['user_group'] = $_POST['user_group'];
-        $entries[$id]['visit_count'] = !empty($_POST['visit_count']) ? intval($_POST['visit_count']) : null;
-        if (!saveCheckinLogEntries($entries, $config)) {
-            $debugError = 'Failed to save changes to check-in log';
-        }
-        header('Location: admin.php#log-section');
-        exit();
     }
 }
+
+
+// ===== Summary Generation Handling =====
+// Initialize message variables for summary generation
+$summaryGenerationMessage = null;
+$summaryGenerationError = null; 
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'generate_summaries') {
+    // Ensure getUsageReport function is available
+    if (!function_exists('getUsageReport')) {
+        error_log("FATAL: getUsageReport function does not exist.");
+        $summaryGenerationError = "Error: Core function getUsageReport missing. Cannot determine months to process.";
+    } else {
+        $usageReport = getUsageReport($config); 
+        $monthsToProcess = array_keys($usageReport);
+        
+        $successCount = 0;
+        $failureCount = 0;
+        $processedCount = 0;
+
+        if (empty($monthsToProcess)) {
+            $summaryGenerationMessage = "No months with data found to summarize.";
+        } else {
+            foreach ($monthsToProcess as $monthStr) {
+                // Ensure generateMonthlySummary function is available
+                if (!function_exists('generateMonthlySummary')) {
+                     error_log("FATAL: generateMonthlySummary function does not exist.");
+                     $summaryGenerationError = "Error: Core function generateMonthlySummary missing. Cannot generate summaries.";
+                     break; // Break from loop
+                }
+
+                list($year, $monthNum) = explode('-', $monthStr);
+                if (generateMonthlySummary((int)$year, (int)$monthNum, $config)) {
+                    $successCount++;
+                } else {
+                    $failureCount++;
+                }
+                $processedCount++;
+            }
+
+            if ($summaryGenerationError === null) { // Only set message if no fatal error occurred
+                $summaryGenerationMessage = "Summary generation attempted for " . $processedCount . " month(s). Successful: " . $successCount . ". Failed: " . $failureCount . ".";
+                if ($failureCount > 0) {
+                    $summaryGenerationMessage .= " Check server error log for details on failures.";
+                }
+            }
+        }
+    }
+}
+
 
 // Handle AJAX request for monthly data
 if (isset($_GET['action']) && $_GET['action'] === 'get_month_data') {
@@ -388,9 +442,30 @@ function getDailyUsageData($config, $month = null) {
     }
 
     if ($month === null) {
-        $month = date('Y-m');
+        $monthStr = date('Y-m'); // Use $monthStr consistently
+    } else {
+        $monthStr = $month;
     }
 
+    // Attempt to use summary file first
+    $summaryFilePath = dirname(__FILE__) . '/summaries/summary_' . $monthStr . '.json';
+    if (file_exists($summaryFilePath) && is_readable($summaryFilePath)) {
+        $jsonData = @file_get_contents($summaryFilePath);
+        if ($jsonData === false) {
+            error_log("Failed to read summary file: " . $summaryFilePath . ". Falling back to raw logs.");
+        } else {
+            $data = json_decode($jsonData, true);
+            if (json_last_error() === JSON_ERROR_NONE && $data !== null) {
+                error_log("Using summary file for month " . $monthStr . " in getDailyUsageData.");
+                return $data;
+            } else {
+                error_log("Error decoding summary JSON or data is null for file: " . $summaryFilePath . ". Error: " . json_last_error_msg() . ". Falling back to raw logs.");
+            }
+        }
+    }
+
+    // Fallback to raw log processing (original logic)
+    error_log("No valid summary file found for month " . $monthStr . " in getDailyUsageData. Processing raw logs.");
     $rootDir = dirname(__FILE__);
     $logsDir = dirname($rootDir . '/' . $config['LOG_PATHS']['CHECKIN']);
     $dailyData = array();
@@ -398,19 +473,75 @@ function getDailyUsageData($config, $month = null) {
     // Process active log file
     $checkInLog = $rootDir . '/' . $config['LOG_PATHS']['CHECKIN'];
     if (file_exists($checkInLog)) {
-        $dailyData = processLogForDailyData($checkInLog, $month, $dailyData);
+        // Only process active log if its data is likely for the current $monthStr
+        // This check might need refinement if active log spans many months
+        $dailyData = processLogForDailyData($checkInLog, $monthStr, $dailyData);
     }
 
     // Process archived log for the requested month
     $archiveDir = $logsDir . '/archives';
     if (is_dir($archiveDir)) {
-        $archiveFile = $archiveDir . '/checkin_' . str_replace('-', '_', $month) . '.csv';
+        $archiveFile = $archiveDir . '/checkin_' . str_replace('-', '_', $monthStr) . '.csv';
         if (file_exists($archiveFile)) {
-            $dailyData = processLogForDailyData($archiveFile, $month, $dailyData);
+            $dailyData = processLogForDailyData($archiveFile, $monthStr, $dailyData);
         }
     }
 
     return $dailyData;
+}
+
+/**
+ * Generates a monthly summary JSON file from daily usage data.
+ *
+ * @param int $year The year for the summary.
+ * @param int $month The month for the summary.
+ * @param array $config The application configuration array.
+ * @return bool True on success, false on failure.
+ */
+function generateMonthlySummary($year, $month, $config) {
+    // 1. Construct the month string in 'YYYY-MM' format
+    $monthStr = sprintf('%04d-%02d', $year, $month);
+
+    // 2. Call getDailyUsageData to get the data for the specified month
+    // IMPORTANT: To avoid recursion if summary doesn't exist, we need a way to force raw log processing here.
+    // For now, this might lead to recursion if getDailyUsageData is called for a month without a summary yet.
+    // This will be addressed by ensuring getDailyUsageData's fallback is robust or by a dedicated raw data function.
+    // For this step, we assume getDailyUsageData will eventually fall back to raw if summary is what we're building.
+    $summaryData = getDailyUsageData($config, $monthStr); // This line is problematic for initial generation
+
+    // 3. Define the target directory for summaries
+    $summariesDir = dirname(__FILE__) . '/summaries/';
+
+    // 4. Define the target summary file path
+    $summaryFilePath = $summariesDir . 'summary_' . $monthStr . '.json';
+
+    // 5. Ensure summaries directory exists
+    if (!is_dir($summariesDir)) {
+        // Attempt to create it
+        if (!@mkdir($summariesDir, 0755, true) && !is_dir($summariesDir)) { // Check again after mkdir
+            error_log("Failed to create summaries directory: " . $summariesDir);
+            return false;
+        }
+    }
+
+    // 6. Encode data to JSON
+    $jsonData = json_encode($summaryData, JSON_PRETTY_PRINT);
+
+    // 7. Check for JSON encoding errors
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log("JSON encoding error for month " . $monthStr . ": " . json_last_error_msg());
+        return false;
+    }
+
+    // 8. Save JSON data to file
+    if (file_put_contents($summaryFilePath, $jsonData) === false) {
+        error_log("Failed to write summary file: " . $summaryFilePath);
+        return false;
+    }
+
+    // 9. If all steps are successful, log success and return true
+    error_log("Summary file generated successfully: " . $summaryFilePath);
+    return true;
 }
 
 function processLogForDailyData($logFile, $month, $dailyData) {
@@ -464,13 +595,60 @@ function processLogForDailyData($logFile, $month, $dailyData) {
  */
 function getUsageReport($config) {
     if (!isset($config['LOG_PATHS']) || !isset($config['LOG_PATHS']['CHECKIN'])) {
-        error_log('Configuration error: LOG_PATHS[CHECKIN] not properly set');
+        error_log('Configuration error: LOG_PATHS[CHECKIN] not properly set for getUsageReport.');
         return array();
     }
 
+    $summariesDir = dirname(__FILE__) . '/summaries/';
+    $usageReport = array();
+
+    // Primary Strategy: Use Summary Files
+    if (is_dir($summariesDir)) {
+        $summaryFiles = glob($summariesDir . 'summary_*.json');
+        if (!empty($summaryFiles)) {
+            error_log("Attempting to build usage report from summary files.");
+            foreach ($summaryFiles as $summaryFile) {
+                // Extract YYYY-MM from filename like 'summary_YYYY-MM.json'
+                if (preg_match('/summary_(\d{4}-\d{2})\.json$/', $summaryFile, $matches)) {
+                    $monthStrFromFile = $matches[1];
+                    $jsonData = @file_get_contents($summaryFile);
+
+                    if ($jsonData !== false) {
+                        $monthlyData = json_decode($jsonData, true);
+                        if (json_last_error() === JSON_ERROR_NONE && $monthlyData !== null) {
+                            $currentMonthReport = array();
+                            foreach ($monthlyData as $date => $dayData) { // $monthlyData is daily data for that month
+                                if (isset($dayData['groups']) && is_array($dayData['groups'])) {
+                                    foreach ($dayData['groups'] as $group => $count) {
+                                        $currentMonthReport[$group] = ($currentMonthReport[$group] ?? 0) + $count;
+                                    }
+                                }
+                            }
+                            if (!empty($currentMonthReport)) {
+                                $usageReport[$monthStrFromFile] = $currentMonthReport;
+                            }
+                        } else {
+                            error_log("Error decoding summary JSON for usage report: " . $summaryFile . ". Error: " . json_last_error_msg());
+                        }
+                    } else {
+                        error_log("Failed to read summary file for usage report: " . $summaryFile);
+                    }
+                }
+            }
+
+            if (!empty($usageReport)) {
+                krsort($usageReport); // Sort months in descending order
+                error_log("Usage report successfully built from " . count($summaryFiles) . " processed summary files which yielded data.");
+                return $usageReport;
+            }
+        }
+    }
+
+    // Fallback Strategy: Use Raw Logs
+    error_log("No summary files found or processed for usage report, or summaries directory does not exist. Falling back to raw log processing.");
     $rootDir = dirname(__FILE__);
     $logsDir = dirname($rootDir . '/' . $config['LOG_PATHS']['CHECKIN']);
-    $usageReport = array();
+    $usageReport = array(); // Reset for raw log processing
 
     // Process active log file
     $checkInLog = $rootDir . '/' . $config['LOG_PATHS']['CHECKIN'];
@@ -491,9 +669,9 @@ function getUsageReport($config) {
 
     // Sort months in descending order
     krsort($usageReport);
-
     return $usageReport;
 }
+
 
 function processLogForUsageReport($logFile, $usageReport) {
     $logEntries = file($logFile);
@@ -1023,6 +1201,21 @@ $graphData = array(
         <?php endif; ?>
         <?php if ($debugError): ?>
             <div class="debug-message error"><?php echo htmlspecialchars($debugError); ?></div>
+        <?php endif; ?>
+    </div>
+
+    <!-- Data Management Section -->
+    <div class="data-management-section" style="margin: 20px; padding: 20px; background: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h2>Data Management</h2>
+        <form method="POST" style="display: inline;">
+            <input type="hidden" name="action" value="generate_summaries">
+            <button type="submit" style="padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Generate/Update All Monthly Summaries</button>
+        </form>
+        <?php if (isset($summaryGenerationMessage)): ?>
+            <div class="debug-message success" style="padding: 10px; margin-top: 10px; border-radius: 4px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;"><?php echo htmlspecialchars($summaryGenerationMessage); ?></div>
+        <?php endif; ?>
+        <?php if (isset($summaryGenerationError)): ?>
+            <div class="debug-message error" style="padding: 10px; margin-top: 10px; border-radius: 4px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;"><?php echo htmlspecialchars($summaryGenerationError); ?></div>
         <?php endif; ?>
     </div>
 

@@ -117,7 +117,18 @@ function refreshSession() {
         }
     })
     .catch(error => {
-        console.error('Error refreshing session:', error);
+        // Check if it's a JSON parsing error
+        if (error instanceof SyntaxError && error.message.includes('JSON')) {
+            console.error('Server returned invalid JSON. This might be a server error:', error);
+            // Log additional debug info
+            error.response?.text().then(text => {
+                console.error('Server response:', text);
+            }).catch(e => {
+                console.error('Could not read server response:', e);
+            });
+        } else {
+            console.error('Error refreshing session:', error);
+        }
         // Don't clear interval on network errors - will retry on next interval
     });
 }
