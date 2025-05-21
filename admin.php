@@ -362,6 +362,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_month_data') {
         error_log("Returning data for month: " . $_GET['month'] . ", Data: " . print_r($data, true));
         echo json_encode($data);
         exit();
+    } else {
+        // Month parameter is missing
+        error_log('Error: month parameter missing for get_month_data action.');
+        http_response_code(400); // Bad Request
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Month parameter is required.']);
+        exit();
     }
 }
 
@@ -407,15 +414,29 @@ function getDailyUsageData($config, $month = null) {
 }
 
 function processLogForDailyData($logFile, $month, $dailyData) {
-    $logEntries = file($logFile);
-    foreach ($logEntries as $entry) {
-        $entryParts = explode(',', trim($entry));
+    $handle = @fopen($logFile, 'r'); // Use @ to suppress default error, check $handle instead
+    if (!$handle) {
+        error_log("Failed to open log file: " . $logFile . ". Skipping this file.");
+        return $dailyData; // Return existing data if file can't be opened
+    }
+
+    while (($entry = fgets($handle)) !== false) { // Read file line by line
+        // Existing logic from the foreach loop starts here, using $entry from fgets
+        $entryParts = str_getcsv(trim($entry)); 
         if (count($entryParts) < 3) continue;
 
-        list($purdueId, $timestamp, $userGroup) = $entryParts;
-        $date = date('Y-m-d', strtotime($timestamp));
+        $originalTimestamp = $entryParts[1]; 
+        $unixTimestamp = strtotime($originalTimestamp);
+
+        if ($unixTimestamp === false) {
+            error_log("Invalid timestamp format in log entry. Original timestamp: '" . $originalTimestamp . "'. Logfile: '" . $logFile . "'. Skipping entry.");
+            continue; 
+        }
+        $date = date('Y-m-d', $unixTimestamp); 
         
-        // Only process entries for the specified month
+        $purdueId = $entryParts[0];
+        $userGroup = $entryParts[2];
+        
         if (strpos($date, $month) !== 0) continue;
 
         if (!isset($dailyData[$date])) {
@@ -432,6 +453,7 @@ function processLogForDailyData($logFile, $month, $dailyData) {
         $dailyData[$date]['groups'][$userGroup]++;
     }
 
+    fclose($handle); // Close the file handle
     return $dailyData;
 }
 
