@@ -1,0 +1,177 @@
+```html
+{% extends "agreement_app/base.html" %}
+{% load static %}
+
+{% block content %}
+<style>
+    .calendar {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+        max-width: 600px;
+        margin: 20px auto;
+        border: 1px solid #ddd;
+        padding: 10px;
+    }
+    .calendar-header, .calendar-day {
+        padding: 10px;
+        text-align: center;
+        border: 1px solid #eee;
+    }
+    .calendar-header {
+        background-color: #f0f0f0;
+        font-weight: bold;
+    }
+    .calendar-day.empty {
+        background-color: #f9f9f9;
+    }
+    .calendar-day .day-number {
+        font-size: 0.8em;
+        color: #777;
+    }
+    .calendar-day .checkin-count {
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+    .tooltip {
+        position: absolute;
+        background-color: #333;
+        color: white;
+        padding: 5px;
+        border-radius: 3px;
+        font-size: 0.9em;
+        display: none;
+        z-index: 1000;
+    }
+</style>
+
+<h2>Admin Reports</h2>
+
+<h3>Monthly Usage Report</h3>
+<table border="1">
+    <thead>
+        <tr>
+            <th>Month</th>
+            <th>User Group</th>
+            <th>Check-ins</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for month, groups in usage_report.items %}
+            {% for group, count in groups.items %}
+                <tr>
+                    <td>{{ month }}</td>
+                    <td>{{ group }}</td>
+                    <td>{{ count }}</td>
+                </tr>
+            {% endfor %}
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>Usage Graph</h3>
+<div style="width: 80%; margin: auto;">
+    <canvas id="usageGraph"></canvas>
+</div>
+
+<h3>Check-in Calendar ({{ current_month_year }})</h3>
+<div id="calendar-container">
+    <div class="calendar-nav">
+        <!-- Placeholder for Previous/Next Month buttons if implemented later -->
+    </div>
+    <div class="calendar" id="checkinCalendar">
+        <div class="calendar-header">Sun</div>
+        <div class="calendar-header">Mon</div>
+        <div class="calendar-header">Tue</div>
+        <div class="calendar-header">Wed</div>
+        <div class="calendar-header">Thu</div>
+        <div class="calendar-header">Fri</div>
+        <div class="calendar-header">Sat</div>
+    </div>
+</div>
+<div id="tooltip" class="tooltip"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const chartData = JSON.parse('{{ chart_data_json|safe }}');
+    const ctx = document.getElementById('usageGraph').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: chartData,
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1 // Ensure y-axis shows whole numbers for counts
+                    }
+                }
+            }
+        }
+    });
+
+    const calendarData = JSON.parse('{{ calendar_data_json|safe }}');
+    const calendarContainer = document.getElementById('checkinCalendar');
+    const tooltip = document.getElementById('tooltip');
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    function renderCalendar(year, month) {
+        // Clear previous days
+        const dayCells = calendarContainer.querySelectorAll('.calendar-day');
+        dayCells.forEach(cell => cell.remove());
+
+        const firstDayOfMonth = new Date(year, month, 1);
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const startingDay = firstDayOfMonth.getDay(); // 0 for Sunday, 1 for Monday, etc.
+
+        // Add empty cells for days before the first of the month
+        for (let i = 0; i < startingDay; i++) {
+            const emptyCell = document.createElement('div');
+            emptyCell.classList.add('calendar-day', 'empty');
+            calendarContainer.appendChild(emptyCell);
+        }
+
+        // Add cells for each day of the month
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayCell = document.createElement('div');
+            dayCell.classList.add('calendar-day');
+            
+            const dayNumber = document.createElement('div');
+            dayNumber.classList.add('day-number');
+            dayNumber.textContent = day;
+            dayCell.appendChild(dayNumber);
+
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            if (calendarData[dateStr]) {
+                const checkinCount = document.createElement('div');
+                checkinCount.classList.add('checkin-count');
+                checkinCount.textContent = calendarData[dateStr].total;
+                dayCell.appendChild(checkinCount);
+
+                let tooltipText = `Total: ${calendarData[dateStr].total}\n`;
+                for (const group in calendarData[dateStr].groups) {
+                    tooltipText += `${group}: ${calendarData[dateStr].groups[group]}\n`;
+                }
+                dayCell.setAttribute('data-tooltip', tooltipText.trim());
+
+                dayCell.onmouseover = function(event) {
+                    tooltip.style.display = 'block';
+                    tooltip.textContent = this.getAttribute('data-tooltip');
+                    tooltip.style.left = (event.pageX + 10) + 'px';
+                    tooltip.style.top = (event.pageY + 10) + 'px';
+                };
+                dayCell.onmouseout = function() {
+                    tooltip.style.display = 'none';
+                };
+            }
+            calendarContainer.appendChild(dayCell);
+        }
+    }
+
+    renderCalendar(currentYear, currentMonth);
+</script>
+{% endblock %}
+```

@@ -1,0 +1,39 @@
+{% extends "agreement_app/base.html" %}
+
+{% block content %}
+  <h2>Confirm Agreement</h2>
+  <p>Please review your information and the agreement below.</p>
+
+  <h3>User Information:</h3>
+  <p><strong>Purdue ID:</strong> {{ purdue_id }}</p>
+  <p><strong>First Name:</strong> {{ user_data.first_name }}</p>
+  <p><strong>Last Name:</strong> {{ user_data.last_name }}</p>
+  <p><strong>Email:</strong> {{ user_data.email }}</p>
+  <p><strong>Phone:</strong> {{ user_data.phone }}</p>
+  <p><strong>User Group:</strong> {{ user_data.user_group }}</p>
+
+  <hr>
+
+  <h3>Purdue University Libraries, Archives and Special Collections<br>Division of Archives and Special Collections<br>Researcher Agreement</h3>
+
+  <p>I hereby agree to the following conditions governing the use of materials from the collections of the Purdue University Libraries, Archives and Special Collections (ASC):</p>
+  <ol>
+      <li>I will handle all materials carefully and in accordance with instructions provided by ASC staff.</li>
+      <li>I understand that some materials may be restricted due to condition, donor requirements, or legal reasons, and I will respect these restrictions.</li>
+      <li>I will not mark, deface, or otherwise damage any materials.</li>
+      <li>I will not remove any materials from the designated research area without permission.</li>
+      <li>I understand that I am responsible for complying with all applicable copyright laws. Permission to access materials does not constitute permission to publish or otherwise reproduce them. I will obtain necessary permissions from copyright holders for any use beyond fair use.</li>
+      <li>I will cite the Purdue University Libraries, Archives and Special Collections as the source of any materials used in publications, exhibitions, or other public presentations, using the preferred citation format provided by ASC staff.</li>
+      <li>I understand that ASC reserves the right to restrict access to materials or to deny access to individuals who violate these conditions.</li>
+      <li>I will inform ASC staff of any planned publication, broadcast, or public display of reproductions of materials from the collections.</li>
+      <li>I acknowledge that ASC is not responsible for any interpretations or conclusions I may draw from the materials.</li>
+      <li>I agree to indemnify and hold harmless Purdue University and its staff from any claims resulting from my use of the materials.</li>
+  </ol>
+  <p>I have read and understood the above conditions and agree to abide by them.</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" name="confirm_agreement">I Agree</button>
+    <a href="{% url 'agreement_app:agreement_index' %}" class="button">Cancel</a>
+  </form>
+{% endblock %}

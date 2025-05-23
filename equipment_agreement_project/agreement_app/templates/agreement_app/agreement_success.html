@@ -1,0 +1,7 @@
+{% extends "agreement_app/base.html" %}
+
+{% block content %}
+  <h2>Agreement Submitted</h2>
+  <p>User Agreement successfully submitted. Thank you!</p>
+  <p><a href="{% url 'agreement_app:agreement_index' %}">Back to Home</a></p>
+{% endblock %}
