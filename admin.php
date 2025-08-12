@@ -47,8 +47,6 @@ error_log("Admin panel initializing at " . date('Y-m-d H:i:s'));
 
 /**
  * Rotates the check-in log automatically. JSON-ONLY.
- * @param array $config The application configuration.
- * @return bool True on success, false on failure.
  */
 function rotateCheckinLogIfNeeded($config) {
     if (!isset($config['LOG_PATHS']['CHECKIN'])) return false;
@@ -169,26 +167,184 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_month_data') {
 }
 
 
-// ===== Debug Operations =====
+// ===== Post Request Handlers for Downloads and Log Management =====
 $debugMessage = '';
 $debugError = '';
-function getDebugLogEntries($config, $limit = 100) {
-    if (!isset($config['LOG_PATHS']['DEBUG'])) return [];
-    $debugLogFile = dirname(__FILE__) . '/' . $config['LOG_PATHS']['DEBUG'];
-    if (!is_readable($debugLogFile)) return [];
-    $command = 'tail -n ' . intval($limit) . ' ' . escapeshellarg($debugLogFile);
-    $output = shell_exec($command);
-    $lines = $output ? explode("\n", trim($output)) : [];
-    $entries = [];
-    foreach (array_reverse($lines) as $index => $line) {
-        if (preg_match('/\[(.*?)\]\s*\[(.*?)\]\s*(.*)/', trim($line), $matches)) {
-            $entries[] = ['id' => $index, 'timestamp' => $matches[1], 'level' => $matches[2], 'message' => $matches[3]];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // --- Handle Debug and Download Actions ---
+    if (isset($_POST['debug_action'])) {
+        $rootDir = dirname(__FILE__);
+        if ($_POST['debug_action'] === 'clear_log') {
+            $debugLogFile = $rootDir . '/' . ($config['LOG_PATHS']['DEBUG'] ?? '');
+            if ($debugLogFile && file_exists($debugLogFile)) {
+                if (@file_put_contents($debugLogFile, '') !== false) $debugMessage = 'Debug log cleared successfully';
+                else $debugError = 'Failed to clear debug log';
+            } else $debugError = 'Debug log file not found';
+        } elseif ($_POST['debug_action'] === 'download_debug_log') {
+            $debugLogFile = $rootDir . '/' . ($config['LOG_PATHS']['DEBUG'] ?? '');
+            if ($debugLogFile && file_exists($debugLogFile)) {
+                header('Content-Type: text/plain');
+                header('Content-Disposition: attachment; filename="debug_log_' . date('Y-m-d') . '.txt"');
+                readfile($debugLogFile); exit();
+            } else $debugError = 'Debug log file not found';
+        } elseif ($_POST['debug_action'] === 'download_log') {
+            // Get all log entries
+            $allLogEntries = getCheckinLogEntries($config);
+            
+            // Set headers for CSV download
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="checkin_log_full_' . date('Y-m-d') . '.csv"');
+            header('Cache-Control: no-cache, must-revalidate');
+            header('Expires: Sat, 26 Jul 1997 05:00:00 GMT');
+            
+            // Create file pointer connected to the output stream
+            $output = fopen('php://output', 'w');
+            
+            // Add CSV headers
+            fputcsv($output, [
+                'Timestamp',
+                'Purdue ID',
+                'Full Name',
+                'User Group',
+                'Department',
+                'Classification',
+                'Campus Code',
+                'User Status',
+                'Visit Count',
+                'Agreement Status'
+            ]);
+            
+            // Add data rows
+            foreach ($allLogEntries as $entry) {
+                fputcsv($output, [
+                    $entry['timestamp'] ?? '',
+                    $entry['purdueId'] ?? '',
+                    $entry['fullName'] ?? '',
+                    $entry['userGroup'] ?? '',
+                    $entry['department'] ?? '',
+                    $entry['classification'] ?? '',
+                    $entry['campusCode'] ?? '',
+                    $entry['userStatus'] ?? '',
+                    $entry['visitCount'] ?? '',
+                    $entry['agreementStatus'] ?? ''
+                ]);
+            }
+            
+            fclose($output);
+            exit();
         }
+
+        // Alternative: If you prefer Excel format (.xlsx), you can use this instead:
+        /*
+        elseif ($_POST['debug_action'] === 'download_log_excel') {
+            // Get all log entries
+            $allLogEntries = getCheckinLogEntries($config);
+            
+            // Create Excel content as XML (simple Excel format)
+            $excelData = '<?xml version="1.0"?>' . "\n";
+            $excelData .= '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">' . "\n";
+            $excelData .= '<Worksheet ss:Name="Check-in Log">' . "\n";
+            $excelData .= '<Table>' . "\n";
+            
+            // Add headers
+            $excelData .= '<Row>';
+            $headers = ['Timestamp', 'Purdue ID', 'Full Name', 'User Group', 'Department', 'Classification', 'Campus Code', 'User Status', 'Visit Count', 'Agreement Status'];
+            foreach ($headers as $header) {
+                $excelData .= '<Cell><Data ss:Type="String">' . htmlspecialchars($header) . '</Data></Cell>';
+            }
+            $excelData .= '</Row>' . "\n";
+            
+            // Add data rows
+            foreach ($allLogEntries as $entry) {
+                $excelData .= '<Row>';
+                $rowData = [
+                    $entry['timestamp'] ?? '',
+                    $entry['purdueId'] ?? '',
+                    $entry['fullName'] ?? '',
+                    $entry['userGroup'] ?? '',
+                    $entry['department'] ?? '',
+                    $entry['classification'] ?? '',
+                    $entry['campusCode'] ?? '',
+                    $entry['userStatus'] ?? '',
+                    $entry['visitCount'] ?? '',
+                    $entry['agreementStatus'] ?? ''
+                ];
+                foreach ($rowData as $cellData) {
+                    $excelData .= '<Cell><Data ss:Type="String">' . htmlspecialchars($cellData) . '</Data></Cell>';
+                }
+                $excelData .= '</Row>' . "\n";
+            }
+            
+            $excelData .= '</Table>' . "\n";
+            $excelData .= '</Worksheet>' . "\n";
+            $excelData .= '</Workbook>';
+            
+            // Set headers for Excel download
+            header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+            header('Content-Disposition: attachment; filename="checkin_log_full_' . date('Y-m-d') . '.xls"');
+            header('Cache-Control: no-cache, must-revalidate');
+            header('Expires: Sat, 26 Jul 1997 05:00:00 GMT');
+            
+            echo $excelData;
+            exit();
+        }
+        */
     }
-    return $entries;
-}
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
-    // Logic for debug actions (clear, download) is unchanged from original
+    // --- Handle Check-in Log Edits and Deletes ---
+    // Note: This is inefficient for very large logs as it rewrites the entire file.
+    // For now, it is functional.
+    function saveAllLogEntries($entries, $config) {
+        // This helper function will sort and write all entries back to the correct files.
+        $entriesByMonth = [];
+        foreach($entries as $entry) {
+            $monthKey = date('Y_m', strtotime($entry['timestamp']));
+            if (!isset($entriesByMonth[$monthKey])) $entriesByMonth[$monthKey] = [];
+            $entriesByMonth[$monthKey][] = json_encode($entry) . "\n";
+        }
+
+        $checkInLogFile = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
+        $archiveDir = dirname($checkInLogFile) . '/archives';
+        $currentMonthKey = date('Y_m');
+
+        // Write current month's entries to the main log
+        file_put_contents($checkInLogFile, implode('', $entriesByMonth[$currentMonthKey] ?? []));
+        unset($entriesByMonth[$currentMonthKey]);
+
+        // Write all other months to their respective archives
+        foreach($entriesByMonth as $month => $lines) {
+            $archiveFile = $archiveDir . '/checkin_' . $month . '.json';
+            file_put_contents($archiveFile, implode('', $lines));
+        }
+        return true;
+    }
+
+    $allEntries = getCheckinLogEntries($config); // Load all entries
+
+    if (isset($_POST['delete_entry']) && isset($_POST['entry_id'])) {
+        $idToDelete = $_POST['entry_id'];
+        $allEntries = array_filter($allEntries, fn($entry) => $entry['id'] != $idToDelete);
+        saveAllLogEntries($allEntries, $config);
+        header("Location: admin.php?view=editor"); exit();
+    }
+    
+    if (isset($_POST['save_entry']) && isset($_POST['entry_id'])) {
+        $idToEdit = $_POST['entry_id'];
+        foreach($allEntries as &$entry) {
+            if ($entry['id'] == $idToEdit) {
+                // Update fields from POST data
+                $entry['fullName'] = $_POST['fullName'];
+                $entry['userGroup'] = $_POST['userGroup'];
+                $entry['department'] = $_POST['department'];
+                $entry['classification'] = $_POST['classification'];
+                $entry['visitCount'] = $_POST['visitCount'];
+                // Add more fields here if you make them editable
+                break;
+            }
+        }
+        saveAllLogEntries($allEntries, $config);
+        header("Location: admin.php?view=editor"); exit();
+    }
 }
 
 
@@ -196,22 +352,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_action'])) {
 
 /**
  * Parses a single JSON line from a log file.
- * @param string $line The line from the log file.
- * @return array|null The parsed data as an associative array, or null if invalid.
  */
 function parseLogLine($line) {
     $line = trim($line);
     if (empty($line)) return null;
-    
     $data = json_decode($line, true);
     if (is_array($data) && isset($data['purdueId'])) {
-        return [
-            'purdueId' => $data['purdueId'] ?? 'N/A', 'timestamp' => $data['timestamp'] ?? 'N/A',
-            'fullName' => $data['fullName'] ?? 'N/A', 'userGroup' => $data['userGroup'] ?? 'N/A',
-            'department' => $data['department'] ?? 'N/A', 'classification' => $data['classification'] ?? 'N/A',
-            'campusCode' => $data['campusCode'] ?? 'N/A', 'userStatus' => $data['userStatus'] ?? 'N/A',
-            'visitCount' => $data['visitCount'] ?? 'N/A', 'agreementStatus' => $data['agreementStatus'] ?? 'N/A',
-        ];
+        return ['purdueId' => $data['purdueId'] ?? 'N/A', 'timestamp' => $data['timestamp'] ?? 'N/A', 'fullName' => $data['fullName'] ?? 'N/A', 'userGroup' => $data['userGroup'] ?? 'N/A', 'department' => $data['department'] ?? 'N/A', 'classification' => $data['classification'] ?? 'N/A', 'campusCode' => $data['campusCode'] ?? 'N/A', 'userStatus' => $data['userStatus'] ?? 'N/A', 'visitCount' => $data['visitCount'] ?? 'N/A', 'agreementStatus' => $data['agreementStatus'] ?? 'N/A'];
     }
     return null;
 }
@@ -237,25 +384,36 @@ function getCheckinLogEntries($config) {
     $checkInLog = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
     $archiveDir = dirname($checkInLog) . '/archives';
     readLogMemorySafe($checkInLog, $entries);
-    
     foreach (glob($archiveDir . '/checkin_*.json') as $archiveFile) {
         readLogMemorySafe($archiveFile, $entries);
     }
     usort($entries, fn($a, $b) => strtotime($b['timestamp']) - strtotime($a['timestamp']));
     return $entries;
 }
-
+function getDebugLogEntries($config, $limit = 100) {
+    if (!isset($config['LOG_PATHS']['DEBUG'])) return [];
+    $debugLogFile = dirname(__FILE__) . '/' . $config['LOG_PATHS']['DEBUG'];
+    if (!is_readable($debugLogFile)) return [];
+    $command = 'tail -n ' . intval($limit) . ' ' . escapeshellarg($debugLogFile);
+    $output = shell_exec($command);
+    $lines = $output ? explode("\n", trim($output)) : [];
+    $entries = [];
+    foreach (array_reverse($lines) as $index => $line) {
+        if (preg_match('/\[(.*?)\]\s*\[(.*?)\]\s*(.*)/', trim($line), $matches)) {
+            $entries[] = ['id' => $index, 'timestamp' => $matches[1], 'level' => $matches[2], 'message' => $matches[3]];
+        }
+    }
+    return $entries;
+}
 function getDailyUsageData($config, $month) {
     if (!isset($config['LOG_PATHS']['CHECKIN'])) return [];
     $dailyData = [];
     $checkInLog = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
     $dailyData = processLogForDailyData($checkInLog, $month, $dailyData);
-    
     $archiveFileJson = dirname($checkInLog) . '/archives/checkin_' . str_replace('-', '_', $month) . '.json';
     $dailyData = processLogForDailyData($archiveFileJson, $month, $dailyData);
     return $dailyData;
 }
-
 function processLogForDailyData($logFile, $month, $dailyData) {
     if (!is_readable($logFile)) return $dailyData;
     $handle = fopen($logFile, 'r');
@@ -275,7 +433,6 @@ function processLogForDailyData($logFile, $month, $dailyData) {
     fclose($handle);
     return $dailyData;
 }
-
 function getUsageReport($config) {
     if (!isset($config['LOG_PATHS']['CHECKIN'])) return [];
     $usageReport = [];
@@ -288,7 +445,6 @@ function getUsageReport($config) {
     krsort($usageReport);
     return $usageReport;
 }
-
 function processLogForUsageReport($logFile, $usageReport) {
     if (!is_readable($logFile)) return $usageReport;
     $handle = fopen($logFile, 'r');
@@ -296,9 +452,7 @@ function processLogForUsageReport($logFile, $usageReport) {
     while (($line = fgets($handle)) !== false) {
         $data = parseLogLine($line);
         if ($data === null) continue;
-        try {
-            $month = (new DateTime($data['timestamp']))->format('Y-m');
-        } catch (Exception $e) { continue; }
+        try { $month = (new DateTime($data['timestamp']))->format('Y-m'); } catch (Exception $e) { continue; }
         if (!isset($usageReport[$month])) $usageReport[$month] = [];
         $usageReport[$month][$data['userGroup']] = ($usageReport[$month][$data['userGroup']] ?? 0) + 1;
     }
@@ -333,44 +487,33 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
     <script src="session.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Styles for log management interface */
-        .log-section, .debug-section, .calendar-section, .graph-container, .usage-report {
-            margin: 20px;
-            padding: 20px;
-            background: #fff;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+        .log-section, .debug-section, .calendar-section, .graph-container, .usage-report { margin: 20px; padding: 20px; background: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .log-viewer, .log-editor, .debug-log-viewer { display: none; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 0.9em; }
         th { background-color: #f5f5f5; }
         tr:nth-child(even) { background-color: #f9f9f9; }
-        .log-controls button, .download-button, .clear-button {
-            margin-right: 10px; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; color: white;
-        }
+        .log-controls button, .download-button, .clear-button { margin-right: 10px; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; color: white; }
         .log-controls button { background-color: #007bff; }
         .log-controls button:hover { background-color: #0056b3; }
         .download-button { background-color: #28a745; }
-        .download-button:hover { background-color: #218838; }
         .clear-button { background-color: #dc3545; }
-        .clear-button:hover { background-color: #c82333; }
-        
-        /* Calendar styles */
         .calendar-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
         .calendar-header { font-weight: bold; padding: 10px; background: #f5f5f5; }
         .calendar-day { padding: 10px; border: 1px solid #ddd; min-height: 80px; position: relative; }
-        .calendar-day.other-month { background: #f9f9f9; color: #999; }
         .day-number { position: absolute; top: 5px; left: 5px; font-size: 0.9em; }
         .usage-count { font-size: 1.2em; margin-top: 25px; }
-        .usage-breakdown { display: none; position: absolute; background: white; border: 1px solid #ddd; padding: 10px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 1000; min-width: 200px; text-align: left; }
+        .usage-breakdown { display: none; position: absolute; background: white; border: 1px solid #ddd; padding: 10px; z-index: 1000; }
         .calendar-day:hover .usage-breakdown { display: block; }
         .heat-0 { background-color: #ffffff; } .heat-1 { background-color: #feedde; } .heat-2 { background-color: #fdbe85; } .heat-3 { background-color: #fd8d3c; } .heat-4 { background-color: #e6550d; } .heat-5 { background-color: #a63603; }
-        
-        /* Error and loading message styles */
-        .error-message { margin: 10px 0; padding: 10px 15px; background-color: #fff3f3; border: 1px solid #ffcdd2; border-radius: 4px; color: #d32f2f; }
-        .loading-indicator { padding: 20px; text-align: center; width: 100%; position: absolute; background: rgba(255, 255, 255, 0.8); top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; }
+        .error-message { margin: 10px 0; padding: 10px 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24; }
+        .loading-indicator { padding: 20px; text-align: center; position: absolute; background: rgba(255, 255, 255, 0.8); top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; }
+        .actions { display: flex; gap: 5px; }
+        .edit-form { display: none; }
+        .edit-form.active { display: table-row; }
+        .delete-selected { margin: 10px 0; padding: 8px 16px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; display: none; }
+        .checkbox-column { width: 30px; text-align: center; }
     </style>
 </head>
 <body>
@@ -385,9 +528,9 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
 
     <div class="calendar-section">
         <div class="calendar-controls">
-            <button onclick="navigateToPreviousMonth()">< Previous</button>
+            <button onclick="navigateToPreviousMonth()">&lt; Previous</button>
             <h2 id="calendar-title"></h2>
-            <button onclick="navigateToNextMonth()">Next ></button>
+            <button onclick="navigateToNextMonth()">&gt; Next</button>
         </div>
         <div class="calendar-grid"></div>
     </div>
@@ -412,20 +555,14 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         <h2>Check-in Log Viewer (Showing most recent 200 entries)</h2>
         <div class="log-controls">
             <button id="view-log-btn">View Log</button>
-            <!-- Other buttons (edit, download) would go here -->
+            <button id="edit-log-btn">Edit Log</button>
+            <form method="POST" style="display: inline;"><input type="hidden" name="debug_action" value="download_log"><button type="submit" class="download-button">Download Full Log</button></form>
         </div>
-        <div class="log-viewer" id="log-viewer" style="display:block;">
+
+        <div class="log-viewer" id="log-viewer">
             <table>
                 <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Full Name</th>
-                        <th>User Group</th>
-                        <th>Department</th>
-                        <th>Classification</th>
-                        <th>Visit #</th>
-                        <th>Agreement</th>
-                    </tr>
+                    <tr><th>Timestamp</th><th>Full Name</th><th>User Group</th><th>Department</th><th>Classification</th><th>Visit #</th><th>Agreement</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach (array_slice($logEntries, 0, 200) as $entry): ?>
@@ -442,14 +579,65 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                 </tbody>
             </table>
         </div>
-        <!-- Log editor would go here -->
-    </div>
+
+        <div class="log-editor" id="log-editor">
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Full Name</th>
+                <th>User Group</th>
+                <th>Department</th>
+                <th>Classification</th>
+                <th>Visit #</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach (array_slice($logEntries, 0, 200) as $entry): ?>
+                <!-- Display Row -->
+                <tr id="view-row-<?php echo $entry['id']; ?>">
+                    <td><?php echo htmlspecialchars($entry['timestamp']); ?></td>
+                    <td><?php echo htmlspecialchars($entry['fullName']); ?></td>
+                    <td><?php echo htmlspecialchars($entry['userGroup']); ?></td>
+                    <td><?php echo htmlspecialchars($entry['department']); ?></td>
+                    <td><?php echo htmlspecialchars($entry['classification']); ?></td>
+                    <td><?php echo htmlspecialchars($entry['visitCount']); ?></td>
+                    <td class="actions">
+                        <button type="button" class="button" onclick="showEditForm(<?php echo $entry['id']; ?>)">Edit</button>
+                        <form method="POST" style="display:inline; margin:0; padding:0;">
+                            <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
+                            <button type="submit" name="delete_entry" value="delete" class="button" onclick="return confirm('Are you sure you want to delete this entry?');">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                <!-- Edit Form Row (hidden by default) -->
+                <tr id="edit-row-<?php echo $entry['id']; ?>" class="edit-form">
+                    <td colspan="7">
+                        <form method="POST" style="display:inline; margin:0; padding:0;">
+                            <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
+                            <input type="text" name="timestamp" value="<?php echo htmlspecialchars($entry['timestamp']); ?>" readonly>
+                            <input type="text" name="fullName" value="<?php echo htmlspecialchars($entry['fullName']); ?>">
+                            <input type="text" name="userGroup" value="<?php echo htmlspecialchars($entry['userGroup']); ?>">
+                            <input type="text" name="department" value="<?php echo htmlspecialchars($entry['department']); ?>">
+                            <input type="text" name="classification" value="<?php echo htmlspecialchars($entry['classification']); ?>">
+                            <input type="number" name="visitCount" value="<?php echo htmlspecialchars($entry['visitCount']); ?>">
+                            <button type="submit" name="save_entry" value="save" class="button">Save</button>
+                            <button type="button" class="button" onclick="hideEditForm(<?php echo $entry['id']; ?>)">Cancel</button>
+                        </form>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
 
     <div class="debug-section">
         <h2>Debug Controls</h2>
         <div class="log-controls">
             <button id="view-debug-log-btn">View Debug Log</button>
-             <!-- Other buttons (download, clear) would go here -->
+            <form method="POST" style="display: inline;"><input type="hidden" name="debug_action" value="download_debug_log"><button type="submit" class="download-button">Download Debug Log</button></form>
+            <form method="POST" style="display: inline;"><input type="hidden" name="debug_action" value="clear_log"><button type="submit" class="clear-button" onclick="return confirm('Are you sure?')">Clear Debug Log</button></form>
         </div>
         <div class="debug-log-viewer" id="debug-log-viewer">
             <table>
@@ -472,8 +660,28 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         let dailyData = {};
 
         function setupButtonListeners() {
-            document.getElementById('view-log-btn')?.addEventListener('click', showLogViewer);
-            document.getElementById('view-debug-log-btn')?.addEventListener('click', showDebugLogViewer);
+            const viewLogBtn = document.getElementById('view-log-btn');
+            const editLogBtn = document.getElementById('edit-log-btn');
+            const viewDebugLogBtn = document.getElementById('view-debug-log-btn');
+
+            if (viewLogBtn) {
+                viewLogBtn.addEventListener('click', () => {
+                    document.getElementById('log-viewer').style.display = 'block';
+                    document.getElementById('log-editor').style.display = 'none';
+                });
+            }
+            if (editLogBtn) {
+                editLogBtn.addEventListener('click', () => {
+                    document.getElementById('log-viewer').style.display = 'none';
+                    document.getElementById('log-editor').style.display = 'block';
+                });
+            }
+            if (viewDebugLogBtn) {
+                viewDebugLogBtn.addEventListener('click', () => {
+                    const viewer = document.getElementById('debug-log-viewer');
+                    viewer.style.display = viewer.style.display === 'block' ? 'none' : 'block';
+                });
+            }
         }
 
         async function loadCalendarAndGraph() {
@@ -494,6 +702,10 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         document.addEventListener('DOMContentLoaded', () => {
             setupButtonListeners();
             loadCalendarAndGraph();
+            // Hide all log views by default
+            document.getElementById('log-viewer').style.display = 'none';
+            document.getElementById('log-editor').style.display = 'none';
+            document.getElementById('debug-log-viewer').style.display = 'none';
         });
 
         function navigateToPreviousMonth() { changeMonth('prev'); }
@@ -506,7 +718,6 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
             loadingDiv.textContent = 'Loading...';
             calendarSection.style.position = 'relative';
             calendarSection.appendChild(loadingDiv);
-
             try {
                 const response = await fetch(`admin.php?action=get_month_data&month=${monthStr}`);
                 if (!response.ok) {
@@ -522,39 +733,27 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         function updateCalendar(monthStr = currentMonth) {
             const [year, month] = monthStr.split('-');
             const date = new Date(year, month - 1);
-
             document.querySelector('.calendar-section .error-message')?.remove();
             document.getElementById('calendar-title').textContent = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-
             const firstDay = new Date(year, month - 1, 1).getDay();
             const totalDays = new Date(year, month, 0).getDate();
             const prevMonthDays = new Date(year, month - 1, 0).getDate();
             let calendarHtml = '';
-
-            for (let i = 0; i < firstDay; i++) {
-                calendarHtml += `<div class="calendar-day other-month"><div class="day-number">${prevMonthDays - firstDay + i + 1}</div></div>`;
-            }
-
+            for (let i = 0; i < firstDay; i++) { calendarHtml += `<div class="calendar-day other-month"><div class="day-number">${prevMonthDays - firstDay + i + 1}</div></div>`; }
             for (let day = 1; day <= totalDays; day++) {
                 const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const dayData = dailyData[dateStr] || { total: 0, groups: {} };
                 let heatLevel = 0;
                 if (dayData.total > 0) heatLevel = 1; if (dayData.total >= 5) heatLevel = 2; if (dayData.total >= 10) heatLevel = 3; if (dayData.total >= 20) heatLevel = 4; if (dayData.total >= 30) heatLevel = 5;
                 let breakdownHtml = '<ul style="margin: 0; padding-left: 20px;">';
-                for (const [group, count] of Object.entries(dayData.groups)) {
-                    breakdownHtml += `<li>${group}: ${count}</li>`;
-                }
+                for (const [group, count] of Object.entries(dayData.groups)) { breakdownHtml += `<li>${group}: ${count}</li>`; }
                 breakdownHtml += '</ul>';
                 calendarHtml += `<div class="calendar-day heat-${heatLevel}"><div class="day-number">${day}</div><div class="usage-count">${dayData.total}</div><div class="usage-breakdown"><strong>${dateStr}</strong><p>Total: ${dayData.total}</p>${breakdownHtml}</div></div>`;
             }
-
             const grid = document.querySelector('.calendar-grid');
             const totalCells = firstDay + totalDays;
             const remainingDays = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-            for (let day = 1; day <= remainingDays; day++) {
-                calendarHtml += `<div class="calendar-day other-month"><div class="day-number">${day}</div></div>`;
-            }
-            
+            for (let day = 1; day <= remainingDays; day++) { calendarHtml += `<div class="calendar-day other-month"><div class="day-number">${day}</div></div>`; }
             grid.innerHTML = `<div class="calendar-header">Sun</div><div class="calendar-header">Mon</div><div class="calendar-header">Tue</div><div class="calendar-header">Wed</div><div class="calendar-header">Thu</div><div class="calendar-header">Fri</div><div class="calendar-header">Sat</div>`;
             grid.insertAdjacentHTML('beforeend', calendarHtml);
         }
@@ -563,7 +762,6 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
             const [year, month] = currentMonth.split('-');
             const newDate = new Date(year, (direction === 'next' ? parseInt(month) : parseInt(month) - 2));
             currentMonth = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
-
             const buttons = document.querySelectorAll('.calendar-controls button');
             buttons.forEach(btn => btn.disabled = true);
             try {
@@ -604,14 +802,14 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                 }
             });
         }
-        
-        function showLogViewer() { 
-            const viewer = document.getElementById('log-viewer');
-            if (viewer) viewer.style.display = viewer.style.display === 'block' ? 'none' : 'block';
+                function showEditForm(id) {
+            document.getElementById(`view-row-${id}`).style.display = 'none';
+            document.getElementById(`edit-row-${id}`).style.display = 'table-row';
         }
-        function showDebugLogViewer() { 
-            const viewer = document.getElementById('debug-log-viewer');
-            if(viewer) viewer.style.display = viewer.style.display === 'block' ? 'none' : 'block';
+
+        function hideEditForm(id) {
+            document.getElementById(`view-row-${id}`).style.display = 'table-row';
+            document.getElementById(`edit-row-${id}`).style.display = 'none';
         }
     </script>
 </body>

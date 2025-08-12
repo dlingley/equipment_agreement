@@ -132,22 +132,26 @@ function sendAgreementEmail($email, $firstName, $lastName) {
 }
 
 /**
- * Main function to handle user agreement verification and creation
- * @param string $purdueId User's Purdue ID
+ * Main function to handle user agreement verification and creation.
+ * It now uses the official Primary ID from the API response for all logging and update actions.
+ * 
+ * @param string $purdueId_input The raw ID scanned by the user.
  * @param array $config Application configuration
  * @return array Result of the operation
  */
-function pushUserNoteAndCheckAgreement($purdueId, $config) {
+function pushUserNoteAndCheckAgreement($purdueId_input, $config) {
+    // Define Alma API endpoints and parameters
     $ALMA_REQ_URL = $config['ALMA_API_CONFIG']['BASE_URL'];
     $ALMA_API_KEY = $config['ALMA_API_KEY'];
     $ALMA_GET_PARAM = $config['ALMA_API_CONFIG']['GET_PARAMS'] . '&apikey=';
     $ALMA_PUT_PARAM = $config['ALMA_API_CONFIG']['PUT_PARAMS'] . '&apikey=';
     
-    debugLog('Starting API call for Purdue ID: ' . $purdueId);
+    debugLog('Starting API call for user input ID: ' . $purdueId_input);
     
+    // Initialize cURL for GET request to fetch user information
     $cr = curl_init();
     curl_setopt_array($cr, [
-        CURLOPT_URL => sprintf("%s%s%s%s", $ALMA_REQ_URL, $purdueId, $ALMA_GET_PARAM, $ALMA_API_KEY),
+        CURLOPT_URL => sprintf("%s%s%s%s", $ALMA_REQ_URL, $purdueId_input, $ALMA_GET_PARAM, $ALMA_API_KEY),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => ["Accept: application/xml"],
         CURLOPT_SSL_VERIFYPEER => false
@@ -164,16 +168,15 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     }
     curl_close($cr);
 
-    // ** THE FIX IS HERE: Robust error handling for non-successful API calls **
+    // Robust error handling for non-successful API calls
     if ($http_code >= 400) {
-        $error_message = "Invalid Purdue ID or user not found."; // Default message
-        // Try to parse a more specific error from Alma's XML response
+        $error_message = "User not found for ID '" . htmlspecialchars($purdueId_input) . "'."; // Default message
         if ($response && ($xml = @simplexml_load_string($response))) {
             if (isset($xml->errorList->error->errorMessage)) {
                 $error_message = (string)$xml->errorList->error->errorMessage;
             }
         }
-        debugLog("API returned HTTP error $http_code. Message: '$error_message'. Full Response: $response", 'ERROR');
+        debugLog("API returned HTTP error $http_code. Message: '$error_message'", 'ERROR');
         return ['error' => $error_message]; // Stop execution and return the error
     }
 
@@ -185,7 +188,12 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     
     $xpath = new DOMXpath($doc);
 
-    // Extract all user data
+    // ** NEW: True Normalization - Get the official ID from the API response **
+    // We will use this official ID for all logging and update operations.
+    $purdueId_official = $xpath->query("//primary_id")->item(0)->nodeValue ?? $purdueId_input;
+    debugLog("Found official Primary ID from API: $purdueId_official");
+
+    // Extract all other user data
     $firstName = $xpath->query("//first_name")->item(0)->nodeValue ?? '';
     $lastName = $xpath->query("//last_name")->item(0)->nodeValue ?? '';
     $email = $xpath->query("//email_address")->item(0)->nodeValue ?? '';
@@ -209,13 +217,13 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
 
     $checkInLogFile = $config['LOG_PATHS']['CHECKIN'];
     
-    // Encapsulate logging logic
-    $logVisit = function($agreementStatus) use ($purdueId, $checkInLogFile, $fullName, $userGroup, $department, $classification, $campusCode, $userStatus) {
+    // Encapsulate logging logic - ** NOW USES THE OFFICIAL ID **
+    $logVisit = function($agreementStatus) use ($purdueId_official, $checkInLogFile, $fullName, $userGroup, $department, $classification, $campusCode, $userStatus) {
         $visitCount = 0;
         $lastVisitTimestamp = 0;
         if (is_readable($checkInLogFile) && ($handle = fopen($checkInLogFile, "r"))) {
             while (($line = fgets($handle)) !== false) {
-                if (strpos($line, '"purdueId":"'.$purdueId.'"') !== false) {
+                if (strpos($line, '"purdueId":"'.$purdueId_official.'"') !== false) {
                     $visitCount++;
                     $data = json_decode(trim($line), true);
                     if ($data && isset($data['timestamp'])) {
@@ -227,13 +235,13 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
             fclose($handle);
         }
         if ($lastVisitTimestamp > 0 && (time() - $lastVisitTimestamp < 30)) {
-            debugLog("Skipping duplicate check-in for user: $purdueId");
+            debugLog("Skipping duplicate check-in for user: $purdueId_official");
             return false;
         }
         $visitCount++;
         
         $logData = [
-            'purdueId' => $purdueId, 'timestamp' => date('Y-m-d H:i:s'),
+            'purdueId' => $purdueId_official, 'timestamp' => date('Y-m-d H:i:s'),
             'fullName' => $fullName, 'userGroup' => $userGroup,
             'department' => $department, 'classification' => $classification,
             'campusCode' => $campusCode, 'userStatus' => $userStatus,
@@ -255,7 +263,41 @@ function pushUserNoteAndCheckAgreement($purdueId, $config) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm'])) {
         debugLog('No existing agreement found, creating new note based on POST confirmation.');
         
-        // (Logic to create the user note in Alma...)
+        $putDoc = new DOMDocument();
+        $putDoc->loadXML($response);
+        $putXpath = new DOMXPath($putDoc);
+        if ($rolesNode = $putXpath->query("//user_roles")->item(0)) {
+            $rolesNode->parentNode->removeChild($rolesNode);
+        }
+        $userNotes = $putXpath->query("//user_notes")->item(0) ?: $putDoc->createElement("user_notes");
+        $putDoc->documentElement->appendChild($userNotes);
+        
+        $userNote = $putDoc->createElement("user_note");
+        $userNote->setAttribute("segment_type", "Internal");
+        $userNotes->appendChild($userNote);
+        $userNote->appendChild($putDoc->createElement("note_type", "CIRCULATION"));
+        $userNote->appendChild($putDoc->createElement("note_text", "Agreed to Knowledge Lab User Agreement"));
+        $userNote->appendChild($putDoc->createElement("user_viewable", "true"));
+        $userNote->appendChild($putDoc->createElement("popup_note", "true"));
+        
+        // ** NEW: Use the OFFICIAL ID for the PUT request to update the correct user **
+        $cr = curl_init();
+        curl_setopt_array($cr, [
+            CURLOPT_URL => sprintf("%s%s%s%s", $ALMA_REQ_URL, $purdueId_official, $ALMA_PUT_PARAM, $ALMA_API_KEY),
+            CURLOPT_CUSTOMREQUEST => "PUT",
+            CURLOPT_POSTFIELDS => $putDoc->saveXML(),
+            CURLOPT_HTTPHEADER => ["Content-Type: application/xml", "Accept: application/xml"],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        $putResponse = curl_exec($cr);
+        $put_http_code = curl_getinfo($cr, CURLINFO_HTTP_CODE);
+        curl_close($cr);
+        if ($put_http_code !== 200) {
+            debugLog("Failed to update user note. HTTP: $put_http_code, Response: $putResponse", "ERROR");
+            return ['error' => 'Failed to update user note. Please try again later.'];
+        }
+        
         sendAgreementEmail($email, $firstName, $lastName);
         $logVisit('created_agreement');
         return ['success' => true, 'agreement_created' => true];
