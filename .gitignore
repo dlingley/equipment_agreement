@@ -7,3 +7,6 @@ config.php
 /.env   
 ._fix_agreements.py
 ._admin.php
+._*
+.DS_Store
+
