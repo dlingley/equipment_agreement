@@ -23,6 +23,11 @@
 - **PHP Session Lifecycle Corrected:** Fixed a critical order-of-operations gotcha in multiple PHP entry points where `session_start()` was called before session configurations were defined. All session variables and paths are now fully configured prior to initialization.
 - **Increased Timeout baseline:** Raised `TIMEOUT` and `COOKIE_LIFETIME` from 2 hours (`7200` seconds) to 12 hours (`43200` seconds) in `config.php`.
 
+### Git Housekeeping & Repository Cleanup
+- **Deprecated File Deletion:** Removed obsolete log management files (`cron_setup.txt`, `manage_logs.log`, `manage_logs.py`, `manage_logs.sh`) and committed the deletions to clean up the repository.
+- **Cross-Platform Git Setting**: Configured `git config core.filemode false` to prevent file permission differences across the SMB network mount from triggering unstaged file changes (e.g., `styles.css`).
+- **macOS Double-Files Ignored**: Updated `.gitignore` to ignore `._*` AppleDouble resource forks and `.DS_Store` files to keep the local and remote environment clean.
+
 ### Note Validation System
 - New validate_note_segments.py script added
 - Agreement note segment validation

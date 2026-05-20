@@ -48,6 +48,7 @@
 - [x] Secure session directory access control (.htaccess protection)
 - [x] Sliding session heartbeat/keepalive for both regular users and administrators
 - [x] Correct session initialization order across all entry points (fixing initialization gotchas)
+- [x] Repository Housekeeping: obsolete log files deleted, macOS `._*` AppleDouble files ignored, and cross-platform network permissions configured via `core.filemode false`
 
 ## In Progress
 
