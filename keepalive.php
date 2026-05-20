@@ -36,6 +36,12 @@ try {
             // Start or resume session
             if (session_status() === PHP_SESSION_NONE) {
                 // Set session configuration using loaded config values first
+                if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
+                    if (!file_exists($config['SESSION_CONFIG']['SAVE_PATH'])) {
+                        @mkdir($config['SESSION_CONFIG']['SAVE_PATH'], 0700, true);
+                    }
+                    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
+                }
                 ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
                 session_set_cookie_params([
                     'lifetime' => $config['SESSION_CONFIG']['TIMEOUT'],
@@ -55,6 +61,19 @@ try {
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'Unauthorized'
+                ]);
+                exit();
+            }
+
+            // Verify session is not expired
+            if (isset($_SESSION['last_activity']) &&
+                (time() - $_SESSION['last_activity']) > $config['SESSION_CONFIG']['TIMEOUT']) {
+                // Session expired, destroy and return unauthorized
+                session_destroy();
+                http_response_code(401);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Session expired due to inactivity'
                 ]);
                 exit();
             }

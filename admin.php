@@ -1,9 +1,14 @@
 <?php
 // ===== Session Management and Authentication =====
-session_start();
 $config = include('config.php');
 
 // Set session configuration using loaded config values
+if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
+    if (!file_exists($config['SESSION_CONFIG']['SAVE_PATH'])) {
+        @mkdir($config['SESSION_CONFIG']['SAVE_PATH'], 0700, true);
+    }
+    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
+}
 ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
 session_set_cookie_params([
     'lifetime' => $config['SESSION_CONFIG']['TIMEOUT'],
@@ -11,6 +16,8 @@ session_set_cookie_params([
     'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY'],
     'samesite' => 'Strict'
 ]);
+
+session_start();
 
 // Update session activity
 $_SESSION['last_activity'] = time();
@@ -24,6 +31,16 @@ if (!isset($_SESSION['last_regeneration']) || (time() - $_SESSION['last_regenera
 // Verify user is logged in and has admin privileges
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
     header('Location: login.php');
+    exit();
+}
+
+// ===== Session Timeout Check =====
+// Check if the session has expired due to inactivity
+if (isset($_SESSION['last_activity']) &&
+    (time() - $_SESSION['last_activity']) > $config['SESSION_CONFIG']['TIMEOUT']) {
+    // Session expired, destroy and redirect to login
+    session_destroy();
+    header('Location: login.php?timeout=1');
     exit();
 }
 

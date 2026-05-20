@@ -17,6 +17,12 @@
 
 ## Recent Changes
 
+### Kiosk Session Timeout Fix (Heartbeat & Storage Isolation)
+- **Keepalive for Kiosk Users:** Modified `session.js` to run the heartbeat check on any page without `.login-form` (so regular kiosk users on `index.php` are successfully kept active).
+- **Session File Isolation:** Added `SAVE_PATH` (`__DIR__ . '/sessions'`) to configuration and created `sessions/` directory. Added a robust `.htaccess` configuration to deny direct web access. This isolates sessions from default system-wide PHP garbage collection.
+- **PHP Session Lifecycle Corrected:** Fixed a critical order-of-operations gotcha in multiple PHP entry points where `session_start()` was called before session configurations were defined. All session variables and paths are now fully configured prior to initialization.
+- **Increased Timeout baseline:** Raised `TIMEOUT` and `COOKIE_LIFETIME` from 2 hours (`7200` seconds) to 12 hours (`43200` seconds) in `config.php`.
+
 ### Note Validation System
 - New validate_note_segments.py script added
 - Agreement note segment validation
@@ -38,6 +44,17 @@
 - Requirements updated
 
 ## Active Decisions
+
+### Session Security & Reliability
+1. **Isolated Session Directory**
+   - Decision: Route all active PHP session files to a dedicated, restricted `sessions/` folder rather than `/tmp`.
+   - Reason: Standard PHP garbage collection on multi-host servers sweeps every 24 minutes and destroys active sessions in shared folders. Storing them locally keeps them active for the full 12 hours.
+   - Status: Complete
+
+2. **Heartbeat Initialization**
+   - Decision: Check for the absence of `.login-form` rather than the presence of `.header-buttons` in JS.
+   - Reason: Kiosk users do not have admin header buttons, meaning the heartbeat was silently bypassed. Removing this restriction triggers keepalives for both regular users and admins.
+   - Status: Complete
 
 ### Note Management
 1. Note Segment Location
@@ -70,13 +87,20 @@
 ## Next Steps
 
 ### Short Term
-1. Note Management
+1. Session Monitoring
+   - [x] Create local `sessions/` directory with `.htaccess` security
+   - [x] Correct PHP script ordering for session settings
+   - [x] Deploy fixed `session.js` keepalive
+   - [ ] Monitor sessions in production to ensure they persist over 8+ hours
+   - [ ] Check logs for any session regeneration errors
+
+2. Note Management
    - [x] Create validation script
    - [x] Test with dry run
    - [x] Update documentation
    - [ ] Monitor results
 
-2. System Updates
+3. System Updates
    - [ ] Review error handling
    - [ ] Update logging if needed
    - [ ] Consider additional validations

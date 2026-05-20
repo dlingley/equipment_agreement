@@ -1,9 +1,25 @@
 <?php
 // ===== Session and Error Handling Setup =====
+$config = include('config.php');
+
+// Set session configuration using loaded config values
+if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
+    if (!file_exists($config['SESSION_CONFIG']['SAVE_PATH'])) {
+        @mkdir($config['SESSION_CONFIG']['SAVE_PATH'], 0700, true);
+    }
+    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
+}
+ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
+session_set_cookie_params([
+    'lifetime' => $config['SESSION_CONFIG']['TIMEOUT'],
+    'secure' => $config['SESSION_CONFIG']['SECURE'],
+    'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY'],
+    'samesite' => 'Strict'
+]);
+
 session_start();
 
 // Set timezone to Eastern Time
-$config = include('config.php');
 date_default_timezone_set($config['TIMEZONE']);
 
 // Enable comprehensive error reporting for debugging

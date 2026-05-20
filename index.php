@@ -4,6 +4,12 @@
 $config = include('config.php');
 
 // Configure session parameters
+if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
+    if (!file_exists($config['SESSION_CONFIG']['SAVE_PATH'])) {
+        @mkdir($config['SESSION_CONFIG']['SAVE_PATH'], 0700, true);
+    }
+    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
+}
 ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
 ini_set('session.gc_probability', 1);
 ini_set('session.gc_divisor', 100);
@@ -38,6 +44,16 @@ if (!isset($_SESSION['last_regeneration']) ||
 // If not logged in, redirect them to the login page for security
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header('Location: login.php');
+    exit();
+}
+
+// ===== Session Timeout Check =====
+// Check if the session has expired due to inactivity
+if (isset($_SESSION['last_activity']) &&
+    (time() - $_SESSION['last_activity']) > $config['SESSION_CONFIG']['TIMEOUT']) {
+    // Session expired, destroy and redirect to login
+    session_destroy();
+    header('Location: login.php?timeout=1');
     exit();
 }
 

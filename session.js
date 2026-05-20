@@ -1,8 +1,8 @@
 // Session management for persistent logins
 document.addEventListener('DOMContentLoaded', function() {
     // Only initialize session monitoring if user is logged in
-    // Check for presence of a logged-in specific element
-    if (document.querySelector('.header-buttons')) {
+    // Check for presence of a login-specific element to avoid running on login page
+    if (!document.querySelector('.login-form')) {
         initSessionMonitor();
     }
 });

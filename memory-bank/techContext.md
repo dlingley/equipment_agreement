@@ -91,10 +91,11 @@
 ```php
 [
     'SESSION_CONFIG' => [
-        'TIMEOUT' => 3600,
-        'COOKIE_LIFETIME' => 3600,
+        'TIMEOUT' => 43200, // 12 hours in seconds
         'SECURE' => true,
-        'HTTP_ONLY' => true
+        'HTTP_ONLY' => true,
+        'COOKIE_LIFETIME' => 43200, // 12 hours in seconds
+        'SAVE_PATH' => __DIR__ . '/sessions'
     ]
 ]
 ```

@@ -1,5 +1,11 @@
 <?php
 // ===== Session Cleanup =====
+$config = include('config.php');
+
+// Set session configuration using loaded config values
+if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
+    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
+}
 
 // Start the session to access existing session data
 session_start();

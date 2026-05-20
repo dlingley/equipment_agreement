@@ -44,6 +44,10 @@
 - [x] Session timeout handling
 - [x] Login state tracking
 - [x] Logout functionality
+- [x] Session storage isolation (custom local sessions save path)
+- [x] Secure session directory access control (.htaccess protection)
+- [x] Sliding session heartbeat/keepalive for both regular users and administrators
+- [x] Correct session initialization order across all entry points (fixing initialization gotchas)
 
 ## In Progress
 

@@ -3,10 +3,13 @@
 // Load configuration first
 $config = require 'config.php';
 
-// Start a new session or resume the existing session
-session_start();
-
 // Set session configuration using loaded config values
+if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
+    if (!file_exists($config['SESSION_CONFIG']['SAVE_PATH'])) {
+        @mkdir($config['SESSION_CONFIG']['SAVE_PATH'], 0700, true);
+    }
+    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
+}
 ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
 session_set_cookie_params([
     'lifetime' => $config['SESSION_CONFIG']['TIMEOUT'],
@@ -14,6 +17,9 @@ session_set_cookie_params([
     'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY'],
     'samesite' => 'Strict'
 ]);
+
+// Start a new session or resume the existing session
+session_start();
 
 // Initialize last activity time if not set
 if (!isset($_SESSION['last_activity'])) {
