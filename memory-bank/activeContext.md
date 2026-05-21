@@ -17,6 +17,13 @@
 
 ## Recent Changes
 
+### Department Usage Dashboard & Accessibility Enhancements
+- **Tabbed Dashboard Reports:** Integrated HTML/CSS tabs allowing admins to toggle between "User Group" and "Department" charts and tables seamlessly.
+- **Top 10 Filtering:** Solved visual clutter by sorting usage and displaying the top 10 departments individually, with remaining check-ins aggregated into a single "Other Departments" dataset.
+- **Colorblind-Friendly Line Chart:** Updated the line chart configuration in `admin.php` with unique point shapes (circles, triangles, squares, stars) and different dash configurations (dashed, dotted, solid) per line, combined with high-contrast CVD-friendly colors.
+- **ARIA Integration:** Enhanced canvas elements with descriptive ARIA attributes for screen readers.
+- **Custom Gold Scrollbars:** Styled tables to scroll nicely with customized gold scrollbars matching the Purdue design guidelines.
+
 ### Kiosk Session Timeout Fix (Heartbeat & Storage Isolation)
 - **Keepalive for Kiosk Users:** Modified `session.js` to run the heartbeat check on any page without `.login-form` (so regular kiosk users on `index.php` are successfully kept active).
 - **Session File Isolation:** Added `SAVE_PATH` (`__DIR__ . '/sessions'`) to configuration and created `sessions/` directory. Added a robust `.htaccess` configuration to deny direct web access. This isolates sessions from default system-wide PHP garbage collection.

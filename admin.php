@@ -516,6 +516,33 @@ function processLogForUsageReport($logFile, $usageReport) {
     fclose($handle);
     return $usageReport;
 }
+function getDepartmentUsageReport($config) {
+    if (!isset($config['LOG_PATHS']['CHECKIN'])) return [];
+    $deptUsage = [];
+    $checkInLog = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
+    $deptUsage = processLogForDeptUsage($checkInLog, $deptUsage);
+    $archiveDir = dirname($checkInLog) . '/archives';
+    foreach (glob($archiveDir . '/checkin_*.json') as $archiveFile) {
+        $deptUsage = processLogForDeptUsage($archiveFile, $deptUsage);
+    }
+    krsort($deptUsage);
+    return $deptUsage;
+}
+function processLogForDeptUsage($logFile, $deptUsage) {
+    if (!is_readable($logFile)) return $deptUsage;
+    $handle = fopen($logFile, 'r');
+    if (!$handle) return $deptUsage;
+    while (($line = fgets($handle)) !== false) {
+        $data = parseLogLine($line);
+        if ($data === null) continue;
+        try { $month = (new DateTime($data['timestamp']))->format('Y-m'); } catch (Exception $e) { continue; }
+        if (!isset($deptUsage[$month])) $deptUsage[$month] = [];
+        $dept = !empty($data['department']) ? $data['department'] : 'N/A';
+        $deptUsage[$month][$dept] = ($deptUsage[$month][$dept] ?? 0) + 1;
+    }
+    fclose($handle);
+    return $deptUsage;
+}
 
 // ===== Prepare Data for Page Display =====
 // Note: Log entries are now loaded via AJAX (get_log_entries) for performance
@@ -533,6 +560,114 @@ foreach ($userGroups as $index => $group) {
     $datasets[] = ['label' => $group, 'data' => $data, 'backgroundColor' => $palette[$index % count($palette)], 'borderWidth' => 1];
 }
 $graphData = ['labels' => $months, 'datasets' => $datasets];
+
+// ===== Prepare Department Data for Line Chart =====
+$deptUsageReport = getDepartmentUsageReport($config);
+$deptTotals = [];
+foreach ($deptUsageReport as $month => $depts) {
+    foreach ($depts as $dept => $count) {
+        $deptTotals[$dept] = ($deptTotals[$dept] ?? 0) + $count;
+    }
+}
+arsort($deptTotals);
+$topDepts = array_slice(array_keys($deptTotals), 0, 10);
+
+$chartMonths = array_reverse($months); // Chronological: oldest to newest
+
+$deptDatasets = [];
+$deptPalette = [
+    '#0072B2', // Deep Blue
+    '#D55E00', // Vermillion (Red-Orange)
+    '#009E73', // Bluish Green
+    '#CC79A7', // Reddish Purple
+    '#E69F00', // Orange
+    '#56B4E9', // Sky Blue
+    '#8E6F3E', // Purdue Gold / Bronze
+    '#4A2F8A', // Deep Indigo
+    '#1D1D1B', // Purdue Charcoal Black
+    '#A0522D'  // Sienna / Brown
+];
+
+$pointStyles = [
+    'circle',
+    'triangle',
+    'rect',
+    'rectRot',
+    'cross',
+    'crossRot',
+    'star',
+    'rectRounded',
+    'triangle',
+    'rect'
+];
+
+$borderDashes = [
+    [],              // Solid line
+    [6, 4],          // Dashed line
+    [2, 3],          // Dotted line
+    [10, 4],         // Long dash
+    [6, 3, 2, 3],    // Dash-dot
+    [10, 4, 2, 4],   // Long dash-dot
+    [],              // Solid line
+    [6, 4],          // Dashed line
+    [2, 3],          // Dotted line
+    [10, 4]          // Long dash
+];
+
+foreach ($topDepts as $index => $dept) {
+    $data = [];
+    foreach ($chartMonths as $month) {
+        $data[] = $deptUsageReport[$month][$dept] ?? 0;
+    }
+    $color = $deptPalette[$index % count($deptPalette)];
+    $deptDatasets[] = [
+        'label' => $dept,
+        'data' => $data,
+        'borderColor' => $color,
+        'backgroundColor' => $color . '33', // 20% opacity for dots
+        'borderWidth' => 3,
+        'fill' => false,
+        'tension' => 0.2,
+        'pointStyle' => $pointStyles[$index % count($pointStyles)],
+        'borderDash' => $borderDashes[$index % count($borderDashes)],
+        'pointRadius' => 6,
+        'pointHoverRadius' => 9,
+        'pointBorderWidth' => 2
+    ];
+}
+
+// Other departments
+$otherData = [];
+foreach ($chartMonths as $month) {
+    $otherCount = 0;
+    if (isset($deptUsageReport[$month])) {
+        foreach ($deptUsageReport[$month] as $dept => $count) {
+            if (!in_array($dept, $topDepts)) {
+                $otherCount += $count;
+            }
+        }
+    }
+    $otherData[] = $otherCount;
+}
+$deptDatasets[] = [
+    'label' => 'Other Departments',
+    'data' => $otherData,
+    'borderColor' => '#7f8c8d',
+    'backgroundColor' => '#7f8c8d33',
+    'borderWidth' => 3,
+    'fill' => false,
+    'tension' => 0.2,
+    'pointStyle' => 'circle',
+    'borderDash' => [4, 4],
+    'pointRadius' => 6,
+    'pointHoverRadius' => 9,
+    'pointBorderWidth' => 2
+];
+
+$deptGraphData = [
+    'labels' => $chartMonths,
+    'datasets' => $deptDatasets
+];
 ?>
 
 <!DOCTYPE html>
@@ -565,20 +700,50 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         <div class="calendar-grid"></div>
     </div>
     
-    <div class="graph-container"><canvas id="usageGraph"></canvas></div>
+    <div class="graph-container">
+        <div class="graph-tabs">
+            <button class="tab-btn active" onclick="switchGraph('userGroup', this)">Check-ins by User Group</button>
+            <button class="tab-btn" onclick="switchGraph('department', this)">Check-ins by Department</button>
+        </div>
+        <div class="canvas-container">
+            <canvas id="usageGraph" role="img" aria-label="Usage chart showing check-ins by user group or department over time. Refer to the data tables below for detailed text values."></canvas>
+        </div>
+    </div>
 
     <div class="usage-report">
-        <h2>Monthly Usage</h2>
-        <table>
-            <thead><tr><th>Month</th><th>User Group</th><th>Check-ins</th></tr></thead>
-            <tbody>
-                <?php foreach ($usageReport as $month => $groups): ?>
-                    <?php foreach ($groups as $userGroup => $count): ?>
-                        <tr><td><?php echo htmlspecialchars($month); ?></td><td><?php echo htmlspecialchars($userGroup); ?></td><td><?php echo htmlspecialchars($count); ?></td></tr>
+        <div class="report-tabs">
+            <button class="tab-btn active" onclick="switchReport('userGroup', this)">Monthly Usage by User Group</button>
+            <button class="tab-btn" onclick="switchReport('department', this)">Monthly Usage by Department</button>
+        </div>
+        
+        <div id="user-group-report" class="report-table-container">
+            <table>
+                <thead><tr><th>Month</th><th>User Group</th><th>Check-ins</th></tr></thead>
+                <tbody>
+                    <?php foreach ($usageReport as $month => $groups): ?>
+                        <?php foreach ($groups as $userGroup => $count): ?>
+                            <tr><td><?php echo htmlspecialchars($month); ?></td><td><?php echo htmlspecialchars($userGroup); ?></td><td><?php echo htmlspecialchars($count); ?></td></tr>
+                        <?php endforeach; ?>
                     <?php endforeach; ?>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="department-report" class="report-table-container" style="display: none;">
+            <table>
+                <thead><tr><th>Month</th><th>Department</th><th>Check-ins</th></tr></thead>
+                <tbody>
+                    <?php foreach ($deptUsageReport as $month => $depts): ?>
+                        <?php 
+                        arsort($depts);
+                        foreach ($depts as $dept => $count): 
+                        ?>
+                            <tr><td><?php echo htmlspecialchars($month); ?></td><td><?php echo htmlspecialchars($dept); ?></td><td><?php echo htmlspecialchars($count); ?></td></tr>
+                        <?php endforeach; ?>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div class="log-section" id="log-section">
@@ -955,21 +1120,81 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
             });
         }
 
+        let usageChart = null;
+        const userGroupGraphData = <?php echo json_encode($graphData); ?>;
+        const departmentGraphData = <?php echo json_encode($deptGraphData); ?>;
+
         function initializeGraph() {
+            renderGraph('userGroup');
+        }
+
+        function renderGraph(type) {
             const ctx = document.getElementById('usageGraph').getContext('2d');
-            const data = <?php echo json_encode($graphData); ?>;
-            new Chart(ctx, {
-                type: 'bar',
-                data: data,
-                options: {
-                    responsive: true,
-                    plugins: {
-                        title: { display: true, text: 'Check-ins by User Group' },
-                        legend: { position: 'bottom' }
-                    },
-                    scales: { y: { beginAtZero: true } }
-                }
+            if (usageChart) {
+                usageChart.destroy();
+            }
+
+            if (type === 'userGroup') {
+                usageChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: userGroupGraphData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: 'Check-ins by User Group' },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15
+                                }
+                            }
+                        },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            } else if (type === 'department') {
+                usageChart = new Chart(ctx, {
+                    type: 'line',
+                    data: departmentGraphData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: 'Check-ins by Department (Top 10)' },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    usePointStyle: true,
+                                    padding: 15
+                                }
+                            }
+                        },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+        }
+
+        function switchGraph(type, btn) {
+            document.querySelectorAll('.graph-tabs .tab-btn').forEach(b => {
+                b.classList.remove('active');
             });
+            btn.classList.add('active');
+            renderGraph(type);
+        }
+
+        function switchReport(type, btn) {
+            document.querySelectorAll('.report-tabs .tab-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            btn.classList.add('active');
+
+            if (type === 'userGroup') {
+                document.getElementById('user-group-report').style.display = 'block';
+                document.getElementById('department-report').style.display = 'none';
+            } else {
+                document.getElementById('user-group-report').style.display = 'none';
+                document.getElementById('department-report').style.display = 'block';
+            }
         }
 
         function showEditForm(id) {

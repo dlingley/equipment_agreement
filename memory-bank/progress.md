@@ -34,6 +34,11 @@
 - [x] Mobile device support
 - [x] Admin interface
   - [x] Usage statistics dashboard
+    - [x] User Group usage bar chart and report table
+    - [x] Department usage line chart and report table (top 10 + other)
+    - [x] Colorblind-friendly styling (distinct colors, dash patterns, and point shapes)
+    - [x] Tabbed views for charts and tables
+    - [x] Custom styled scrollbars with gold styling
   - [x] Calendar view with heat map
   - [x] Daily check-in visualization
 
@@ -69,6 +74,11 @@
 - [ ] Testing implementation
 
 ## Recent Achievements
+
+### Department Usage Dashboard
+- [x] Implemented department check-in aggregation logic in `admin.php`
+- [x] Created tabbed HTML/CSS component to switch graph and table modes
+- [x] Integrated accessibility features including CVD-friendly colors, line stroke patterns, point styles, and ARIA markup
 
 ### Agreement Note System
 1. Note Creation
