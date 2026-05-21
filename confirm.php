@@ -233,23 +233,65 @@ function pushUserNoteAndCheckAgreement($purdueId_input, $config) {
 
     $checkInLogFile = $config['LOG_PATHS']['CHECKIN'];
     
-    // Encapsulate logging logic - ** NOW USES THE OFFICIAL ID **
     $logVisit = function($agreementStatus) use ($purdueId_official, $checkInLogFile, $fullName, $userGroup, $department, $classification, $campusCode, $userStatus) {
         $visitCount = 0;
         $lastVisitTimestamp = 0;
+        $foundInMain = false;
+
+        // 1. Scan the main log file (logs/checkin_log.json)
         if (is_readable($checkInLogFile) && ($handle = fopen($checkInLogFile, "r"))) {
             while (($line = fgets($handle)) !== false) {
                 if (strpos($line, '"purdueId":"'.$purdueId_official.'"') !== false) {
-                    $visitCount++;
                     $data = json_decode(trim($line), true);
-                    if ($data && isset($data['timestamp'])) {
-                        $currentTs = strtotime($data['timestamp']);
-                        if ($currentTs > $lastVisitTimestamp) $lastVisitTimestamp = $currentTs;
+                    if ($data) {
+                        $foundInMain = true;
+                        $visitCount = max($visitCount, intval($data['visitCount'] ?? 0));
+                        if (isset($data['timestamp'])) {
+                            $currentTs = strtotime($data['timestamp']);
+                            if ($currentTs > $lastVisitTimestamp) $lastVisitTimestamp = $currentTs;
+                        }
                     }
                 }
             }
             fclose($handle);
         }
+
+        // 2. If not found in the main log, check the archives in reverse chronological order
+        if (!$foundInMain) {
+            $logDir = dirname($checkInLogFile);
+            $archiveDir = $logDir . '/archives';
+            if (is_dir($archiveDir)) {
+                $archiveFiles = glob($archiveDir . '/checkin_*.json');
+                if ($archiveFiles) {
+                    // Sort files in reverse chronological order
+                    rsort($archiveFiles);
+                    foreach ($archiveFiles as $archiveFile) {
+                        if (is_readable($archiveFile) && ($handle = fopen($archiveFile, "r"))) {
+                            $foundInArchive = false;
+                            while (($line = fgets($handle)) !== false) {
+                                if (strpos($line, '"purdueId":"'.$purdueId_official.'"') !== false) {
+                                    $data = json_decode(trim($line), true);
+                                    if ($data) {
+                                        $foundInArchive = true;
+                                        $visitCount = max($visitCount, intval($data['visitCount'] ?? 0));
+                                        if (isset($data['timestamp'])) {
+                                            $currentTs = strtotime($data['timestamp']);
+                                            if ($currentTs > $lastVisitTimestamp) $lastVisitTimestamp = $currentTs;
+                                        }
+                                    }
+                                }
+                            }
+                            fclose($handle);
+                            // Stop scanning older months if we found entries in the most recent archived month
+                            if ($foundInArchive) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if ($lastVisitTimestamp > 0 && (time() - $lastVisitTimestamp < 30)) {
             debugLog("Skipping duplicate check-in for user: $purdueId_official");
             return false;
