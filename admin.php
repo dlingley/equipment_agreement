@@ -164,10 +164,14 @@ function cleanupOldDebugArchives($config) {
     }
 }
 
-// ** Trigger all self-maintaining tasks on every admin page load. **
-rotateCheckinLogIfNeeded($config);
-rotateDebugLogIfNeeded($config);
-cleanupOldDebugArchives($config);
+// ** Trigger self-maintaining tasks at most once per hour per session. **
+$lastRotation = $_SESSION['last_log_rotation'] ?? 0;
+if (time() - $lastRotation > 3600) {
+    rotateCheckinLogIfNeeded($config);
+    rotateDebugLogIfNeeded($config);
+    cleanupOldDebugArchives($config);
+    $_SESSION['last_log_rotation'] = time();
+}
 
 
 // ===== AJAX Request Handler for Calendar Data =====
@@ -422,12 +426,23 @@ function getDebugLogEntries($config, $limit = 100) {
     if (!isset($config['LOG_PATHS']['DEBUG'])) return [];
     $debugLogFile = dirname(__FILE__) . '/' . $config['LOG_PATHS']['DEBUG'];
     if (!is_readable($debugLogFile)) return [];
-    $command = 'tail -n ' . intval($limit) . ' ' . escapeshellarg($debugLogFile);
-    $output = shell_exec($command);
-    $lines = $output ? explode("\n", trim($output)) : [];
+
+    // Pure PHP tail — no shell_exec needed
+    $file = new SplFileObject($debugLogFile, 'r');
+    $file->seek(PHP_INT_MAX);
+    $totalLines = $file->key();
+    $startLine = max(0, $totalLines - intval($limit));
+    $file->seek($startLine);
+    $lines = [];
+    while (!$file->eof()) {
+        $line = trim($file->current());
+        if ($line !== '') $lines[] = $line;
+        $file->next();
+    }
+
     $entries = [];
     foreach (array_reverse($lines) as $index => $line) {
-        if (preg_match('/\[(.*?)\]\s*\[(.*?)\]\s*(.*)/', trim($line), $matches)) {
+        if (preg_match('/\[(.*?)\]\s*\[(.*?)\]\s*(.*)/', $line, $matches)) {
             $entries[] = ['id' => $index, 'timestamp' => $matches[1], 'level' => $matches[2], 'message' => $matches[3]];
         }
     }
@@ -611,58 +626,58 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         </div>
 
         <div class="log-editor" id="log-editor">
-    <table>
-        <thead>
-            <tr>
-                <th>Timestamp</th>
-                <th>Full Name</th>
-                <th>User Group</th>
-                <th>Department</th>
-                <th>Classification</th>
-                <th>Visit #</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach (array_slice($logEntries, 0, 200) as $entry): ?>
-                <!-- Display Row -->
-                <tr id="view-row-<?php echo $entry['id']; ?>">
-                    <td><?php echo htmlspecialchars($entry['timestamp']); ?></td>
-                    <td><?php echo htmlspecialchars($entry['fullName']); ?></td>
-                    <td><?php echo htmlspecialchars($entry['userGroup']); ?></td>
-                    <td><?php echo htmlspecialchars($entry['department']); ?></td>
-                    <td><?php echo htmlspecialchars($entry['classification']); ?></td>
-                    <td><?php echo htmlspecialchars($entry['visitCount']); ?></td>
-                    <td class="actions">
-                        <button type="button" class="button" onclick="showEditForm(<?php echo $entry['id']; ?>)">Edit</button>
-                        <form method="POST" style="display:inline; margin:0; padding:0;">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                            <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
-                            <button type="submit" name="delete_entry" value="delete" class="button" onclick="return confirm('Are you sure you want to delete this entry?');">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-                <!-- Edit Form Row (hidden by default) -->
-                <tr id="edit-row-<?php echo $entry['id']; ?>" class="edit-form">
-                    <td colspan="7">
-                        <form method="POST" style="display:inline; margin:0; padding:0;">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                            <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
-                            <input type="text" name="timestamp" value="<?php echo htmlspecialchars($entry['timestamp']); ?>" readonly>
-                            <input type="text" name="fullName" value="<?php echo htmlspecialchars($entry['fullName']); ?>">
-                            <input type="text" name="userGroup" value="<?php echo htmlspecialchars($entry['userGroup']); ?>">
-                            <input type="text" name="department" value="<?php echo htmlspecialchars($entry['department']); ?>">
-                            <input type="text" name="classification" value="<?php echo htmlspecialchars($entry['classification']); ?>">
-                            <input type="number" name="visitCount" value="<?php echo htmlspecialchars($entry['visitCount']); ?>">
-                            <button type="submit" name="save_entry" value="save" class="button">Save</button>
-                            <button type="button" class="button" onclick="hideEditForm(<?php echo $entry['id']; ?>)">Cancel</button>
-                        </form>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
-</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Full Name</th>
+                        <th>User Group</th>
+                        <th>Department</th>
+                        <th>Classification</th>
+                        <th>Visit #</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach (array_slice($logEntries, 0, 200) as $entry): ?>
+                        <!-- Display Row -->
+                        <tr id="view-row-<?php echo $entry['id']; ?>">
+                            <td><?php echo htmlspecialchars($entry['timestamp']); ?></td>
+                            <td><?php echo htmlspecialchars($entry['fullName']); ?></td>
+                            <td><?php echo htmlspecialchars($entry['userGroup']); ?></td>
+                            <td><?php echo htmlspecialchars($entry['department']); ?></td>
+                            <td><?php echo htmlspecialchars($entry['classification']); ?></td>
+                            <td><?php echo htmlspecialchars($entry['visitCount']); ?></td>
+                            <td class="actions">
+                                <button type="button" class="button" onclick="showEditForm(<?php echo $entry['id']; ?>)">Edit</button>
+                                <form method="POST" style="display:inline; margin:0; padding:0;">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                    <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
+                                    <button type="submit" name="delete_entry" value="delete" class="button" onclick="return confirm('Are you sure you want to delete this entry?');">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <!-- Edit Form Row (hidden by default) -->
+                        <tr id="edit-row-<?php echo $entry['id']; ?>" class="edit-form">
+                            <td colspan="7">
+                                <form method="POST" style="display:inline; margin:0; padding:0;">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                    <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
+                                    <input type="text" name="timestamp" value="<?php echo htmlspecialchars($entry['timestamp']); ?>" readonly>
+                                    <input type="text" name="fullName" value="<?php echo htmlspecialchars($entry['fullName']); ?>">
+                                    <input type="text" name="userGroup" value="<?php echo htmlspecialchars($entry['userGroup']); ?>">
+                                    <input type="text" name="department" value="<?php echo htmlspecialchars($entry['department']); ?>">
+                                    <input type="text" name="classification" value="<?php echo htmlspecialchars($entry['classification']); ?>">
+                                    <input type="number" name="visitCount" value="<?php echo htmlspecialchars($entry['visitCount']); ?>">
+                                    <button type="submit" name="save_entry" value="save" class="button">Save</button>
+                                    <button type="button" class="button" onclick="hideEditForm(<?php echo $entry['id']; ?>)">Cancel</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
 
     <div class="debug-section">
         <h2>Debug Controls</h2>
