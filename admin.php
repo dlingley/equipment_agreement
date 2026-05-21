@@ -19,7 +19,22 @@ session_set_cookie_params([
 
 session_start();
 
-// Update session activity
+// Generate CSRF token if not present in session
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// ===== Session Timeout Check =====
+// Check BEFORE updating last_activity, otherwise the check can never trigger
+if (isset($_SESSION['last_activity']) &&
+    (time() - $_SESSION['last_activity']) > $config['SESSION_CONFIG']['TIMEOUT']) {
+    // Session expired, destroy and redirect to login
+    session_destroy();
+    header('Location: login.php?timeout=1');
+    exit();
+}
+
+// Update session activity (after timeout check)
 $_SESSION['last_activity'] = time();
 
 // Regenerate session ID periodically to prevent fixation
@@ -34,16 +49,6 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || !isset(
     exit();
 }
 
-// ===== Session Timeout Check =====
-// Check if the session has expired due to inactivity
-if (isset($_SESSION['last_activity']) &&
-    (time() - $_SESSION['last_activity']) > $config['SESSION_CONFIG']['TIMEOUT']) {
-    // Session expired, destroy and redirect to login
-    session_destroy();
-    header('Location: login.php?timeout=1');
-    exit();
-}
-
 // Handle logout request
 if (isset($_GET['logout'])) {
     session_destroy();
@@ -53,8 +58,8 @@ if (isset($_GET['logout'])) {
 
 // ===== Error Reporting Configuration =====
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', dirname(__FILE__) . '/php_errors.log');
 
@@ -189,6 +194,12 @@ $debugMessage = '';
 $debugError = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF token validation
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+        http_response_code(403);
+        exit('Invalid security token. Please refresh the page and try again.');
+    }
+
     // --- Handle Debug and Download Actions ---
     if (isset($_POST['debug_action'])) {
         $rootDir = dirname(__FILE__);
@@ -349,12 +360,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $idToEdit = $_POST['entry_id'];
         foreach($allEntries as &$entry) {
             if ($entry['id'] == $idToEdit) {
-                // Update fields from POST data
-                $entry['fullName'] = $_POST['fullName'];
-                $entry['userGroup'] = $_POST['userGroup'];
-                $entry['department'] = $_POST['department'];
-                $entry['classification'] = $_POST['classification'];
-                $entry['visitCount'] = $_POST['visitCount'];
+                // Update fields from POST data (sanitized)
+                $entry['fullName'] = trim(strip_tags($_POST['fullName'] ?? ''));
+                $entry['userGroup'] = trim(strip_tags($_POST['userGroup'] ?? ''));
+                $entry['department'] = trim(strip_tags($_POST['department'] ?? ''));
+                $entry['classification'] = trim(strip_tags($_POST['classification'] ?? ''));
+                $entry['visitCount'] = max(0, intval($_POST['visitCount'] ?? 0));
                 // Add more fields here if you make them editable
                 break;
             }
@@ -486,10 +497,11 @@ foreach ($usageReport as $groups) {
     foreach (array_keys($groups) as $group) { if (!in_array($group, $userGroups)) $userGroups[] = $group; }
 }
 $datasets = [];
-foreach ($userGroups as $group) {
+$palette = ['#CFB991', '#1D1D1B', '#8E6F3E', '#555960', '#6F727B', '#9D9795', '#DDB945', '#C4BFC0'];
+foreach ($userGroups as $index => $group) {
     $data = [];
     foreach ($months as $month) { $data[] = $usageReport[$month][$group] ?? 0; }
-    $datasets[] = ['label' => $group, 'data' => $data, 'backgroundColor' => sprintf('#%06X', mt_rand(0, 0xFFFFFF)), 'borderWidth' => 1];
+    $datasets[] = ['label' => $group, 'data' => $data, 'backgroundColor' => $palette[$index % count($palette)], 'borderWidth' => 1];
 }
 $graphData = ['labels' => $months, 'datasets' => $datasets];
 ?>
@@ -524,6 +536,7 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         .usage-breakdown { display: none; position: absolute; background: white; border: 1px solid #ddd; padding: 10px; z-index: 1000; }
         .calendar-day:hover .usage-breakdown { display: block; }
         .heat-0 { background-color: #ffffff; } .heat-1 { background-color: #feedde; } .heat-2 { background-color: #fdbe85; } .heat-3 { background-color: #fd8d3c; } .heat-4 { background-color: #e6550d; } .heat-5 { background-color: #a63603; }
+        .calendar-today { outline: 3px solid #CFB991; outline-offset: -3px; } .calendar-today .day-number { font-weight: bold; color: #8E6F3E; }
         .error-message { margin: 10px 0; padding: 10px 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24; }
         .loading-indicator { padding: 20px; text-align: center; position: absolute; background: rgba(255, 255, 255, 0.8); top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; }
         .actions { display: flex; gap: 5px; }
@@ -573,7 +586,7 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         <div class="log-controls">
             <button id="view-log-btn">View Log</button>
             <button id="edit-log-btn">Edit Log</button>
-            <form method="POST" style="display: inline;"><input type="hidden" name="debug_action" value="download_log"><button type="submit" class="download-button">Download Full Log</button></form>
+            <form method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>"><input type="hidden" name="debug_action" value="download_log"><button type="submit" class="download-button">Download Full Log</button></form>
         </div>
 
         <div class="log-viewer" id="log-viewer">
@@ -623,6 +636,7 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                     <td class="actions">
                         <button type="button" class="button" onclick="showEditForm(<?php echo $entry['id']; ?>)">Edit</button>
                         <form method="POST" style="display:inline; margin:0; padding:0;">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
                             <button type="submit" name="delete_entry" value="delete" class="button" onclick="return confirm('Are you sure you want to delete this entry?');">Delete</button>
                         </form>
@@ -632,6 +646,7 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                 <tr id="edit-row-<?php echo $entry['id']; ?>" class="edit-form">
                     <td colspan="7">
                         <form method="POST" style="display:inline; margin:0; padding:0;">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
                             <input type="text" name="timestamp" value="<?php echo htmlspecialchars($entry['timestamp']); ?>" readonly>
                             <input type="text" name="fullName" value="<?php echo htmlspecialchars($entry['fullName']); ?>">
@@ -653,8 +668,8 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         <h2>Debug Controls</h2>
         <div class="log-controls">
             <button id="view-debug-log-btn">View Debug Log</button>
-            <form method="POST" style="display: inline;"><input type="hidden" name="debug_action" value="download_debug_log"><button type="submit" class="download-button">Download Debug Log</button></form>
-            <form method="POST" style="display: inline;"><input type="hidden" name="debug_action" value="clear_log"><button type="submit" class="clear-button" onclick="return confirm('Are you sure?')">Clear Debug Log</button></form>
+            <form method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>"><input type="hidden" name="debug_action" value="download_debug_log"><button type="submit" class="download-button">Download Debug Log</button></form>
+            <form method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>"><input type="hidden" name="debug_action" value="clear_log"><button type="submit" class="clear-button" onclick="return confirm('Are you sure?')">Clear Debug Log</button></form>
         </div>
         <div class="debug-log-viewer" id="debug-log-viewer">
             <table>
@@ -762,10 +777,11 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                 const dayData = dailyData[dateStr] || { total: 0, groups: {} };
                 let heatLevel = 0;
                 if (dayData.total > 0) heatLevel = 1; if (dayData.total >= 5) heatLevel = 2; if (dayData.total >= 10) heatLevel = 3; if (dayData.total >= 20) heatLevel = 4; if (dayData.total >= 30) heatLevel = 5;
+                const todayClass = dateStr === new Date().toISOString().split('T')[0] ? ' calendar-today' : '';
                 let breakdownHtml = '<ul style="margin: 0; padding-left: 20px;">';
                 for (const [group, count] of Object.entries(dayData.groups)) { breakdownHtml += `<li>${group}: ${count}</li>`; }
                 breakdownHtml += '</ul>';
-                calendarHtml += `<div class="calendar-day heat-${heatLevel}"><div class="day-number">${day}</div><div class="usage-count">${dayData.total}</div><div class="usage-breakdown"><strong>${dateStr}</strong><p>Total: ${dayData.total}</p>${breakdownHtml}</div></div>`;
+                calendarHtml += `<div class="calendar-day heat-${heatLevel}${todayClass}"><div class="day-number">${day}</div><div class="usage-count">${dayData.total}</div><div class="usage-breakdown"><strong>${dateStr}</strong><p>Total: ${dayData.total}</p>${breakdownHtml}</div></div>`;
             }
             const grid = document.querySelector('.calendar-grid');
             const totalCells = firstDay + totalDays;
