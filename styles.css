@@ -246,3 +246,250 @@ input[type="submit"]:hover, input[type="reset"]:hover, .button:hover {
         justify-content: center;
     }
 }
+
+/* ===== Admin Panel Styles ===== */
+
+.log-section,
+.debug-section,
+.calendar-section {
+    margin: 20px;
+    padding: 20px;
+    background: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.log-viewer,
+.log-editor,
+.debug-log-viewer {
+    display: none;
+}
+
+.log-section table,
+.debug-section table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.log-section th,
+.log-section td,
+.debug-section th,
+.debug-section td {
+    padding: 8px;
+    border: 1px solid #ddd;
+    text-align: left;
+    font-size: 0.9em;
+}
+
+.log-section th,
+.debug-section th {
+    background-color: #f5f5f5;
+}
+
+.log-section tr:nth-child(even),
+.debug-section tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.log-controls button,
+.download-button,
+.clear-button {
+    margin-right: 10px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: white;
+}
+
+.log-controls button {
+    background-color: #007bff;
+}
+
+.log-controls button:hover {
+    background-color: #0056b3;
+}
+
+.download-button {
+    background-color: #28a745;
+}
+
+.clear-button {
+    background-color: #dc3545;
+}
+
+/* Calendar heat map */
+.calendar-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    text-align: center;
+}
+
+.calendar-header {
+    font-weight: bold;
+    padding: 10px;
+    background: #f5f5f5;
+}
+
+.calendar-day {
+    padding: 10px;
+    border: 1px solid #ddd;
+    min-height: 80px;
+    position: relative;
+}
+
+.day-number {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    font-size: 0.9em;
+}
+
+.usage-count {
+    font-size: 1.2em;
+    margin-top: 25px;
+}
+
+.usage-breakdown {
+    display: none;
+    position: absolute;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    min-width: 150px;
+    white-space: nowrap;
+}
+
+.calendar-day:hover .usage-breakdown {
+    display: block;
+}
+
+.heat-0 { background-color: #ffffff; }
+.heat-1 { background-color: #feedde; }
+.heat-2 { background-color: #fdbe85; }
+.heat-3 { background-color: #fd8d3c; }
+.heat-4 { background-color: #e6550d; }
+.heat-5 { background-color: #a63603; }
+
+.calendar-today {
+    outline: 3px solid #CFB991;
+    outline-offset: -3px;
+}
+
+.calendar-today .day-number {
+    font-weight: bold;
+    color: #8E6F3E;
+}
+
+.other-month {
+    opacity: 0.4;
+}
+
+/* Loading and error states */
+.loading-indicator {
+    padding: 20px;
+    text-align: center;
+    position: absolute;
+    background: rgba(255, 255, 255, 0.8);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+}
+
+/* Log editor actions */
+.actions {
+    display: flex;
+    gap: 5px;
+}
+
+.edit-form {
+    display: none;
+}
+
+.edit-form.active {
+    display: table-row;
+}
+
+.delete-selected {
+    margin: 10px 0;
+    padding: 8px 16px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: none;
+}
+
+.checkbox-column {
+    width: 30px;
+    text-align: center;
+}
+
+/* Log search and pagination */
+.log-search-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin: 10px 0;
+}
+
+.log-search-bar input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.log-search-bar .result-count {
+    font-size: 0.85em;
+    color: #666;
+    white-space: nowrap;
+}
+
+.log-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.log-pagination button {
+    padding: 6px 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    color: #333;
+}
+
+.log-pagination button:hover:not(:disabled) {
+    background: #f0f0f0;
+}
+
+.log-pagination button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.log-pagination .page-info {
+    font-size: 0.85em;
+    color: #666;
+}

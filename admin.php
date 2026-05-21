@@ -174,22 +174,36 @@ if (time() - $lastRotation > 3600) {
 }
 
 
-// ===== AJAX Request Handler for Calendar Data =====
-if (isset($_GET['action']) && $_GET['action'] === 'get_month_data') {
+// ===== AJAX Request Handlers =====
+if (isset($_GET['action'])) {
     header('Content-Type: application/json');
-    if (!isset($_GET['month']) || !preg_match('/^\d{4}-\d{2}$/', $_GET['month'])) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Invalid or missing month parameter.']);
+
+    if ($_GET['action'] === 'get_month_data') {
+        if (!isset($_GET['month']) || !preg_match('/^\d{4}-\d{2}$/', $_GET['month'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid or missing month parameter.']);
+            exit();
+        }
+        try {
+            $data = getDailyUsageData($config, $_GET['month']);
+            echo json_encode($data);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'An internal server error occurred.']);
+        }
         exit();
     }
-    try {
-        $data = getDailyUsageData($config, $_GET['month']);
-        echo json_encode($data);
-    } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(['error' => 'An internal server error occurred.']);
+
+    if ($_GET['action'] === 'get_log_entries') {
+        try {
+            $entries = getCheckinLogEntries($config);
+            echo json_encode(['entries' => $entries]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to load log entries.']);
+        }
+        exit();
     }
-    exit();
 }
 
 
@@ -504,7 +518,7 @@ function processLogForUsageReport($logFile, $usageReport) {
 }
 
 // ===== Prepare Data for Page Display =====
-$logEntries = getCheckinLogEntries($config);
+// Note: Log entries are now loaded via AJAX (get_log_entries) for performance
 $usageReport = getUsageReport($config);
 $months = array_keys($usageReport);
 $userGroups = [];
@@ -527,39 +541,10 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Usage Report</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=<?php echo filemtime('styles.css'); ?>">
     <script src="session.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        .log-section, .debug-section, .calendar-section, .graph-container, .usage-report { margin: 20px; padding: 20px; background: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .log-viewer, .log-editor, .debug-log-viewer { display: none; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 0.9em; }
-        th { background-color: #f5f5f5; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .log-controls button, .download-button, .clear-button { margin-right: 10px; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-        .log-controls button { background-color: #007bff; }
-        .log-controls button:hover { background-color: #0056b3; }
-        .download-button { background-color: #28a745; }
-        .clear-button { background-color: #dc3545; }
-        .calendar-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
-        .calendar-header { font-weight: bold; padding: 10px; background: #f5f5f5; }
-        .calendar-day { padding: 10px; border: 1px solid #ddd; min-height: 80px; position: relative; }
-        .day-number { position: absolute; top: 5px; left: 5px; font-size: 0.9em; }
-        .usage-count { font-size: 1.2em; margin-top: 25px; }
-        .usage-breakdown { display: none; position: absolute; background: white; border: 1px solid #ddd; padding: 10px; z-index: 1000; }
-        .calendar-day:hover .usage-breakdown { display: block; }
-        .heat-0 { background-color: #ffffff; } .heat-1 { background-color: #feedde; } .heat-2 { background-color: #fdbe85; } .heat-3 { background-color: #fd8d3c; } .heat-4 { background-color: #e6550d; } .heat-5 { background-color: #a63603; }
-        .calendar-today { outline: 3px solid #CFB991; outline-offset: -3px; } .calendar-today .day-number { font-weight: bold; color: #8E6F3E; }
-        .error-message { margin: 10px 0; padding: 10px 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24; }
-        .loading-indicator { padding: 20px; text-align: center; position: absolute; background: rgba(255, 255, 255, 0.8); top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; }
-        .actions { display: flex; gap: 5px; }
-        .edit-form { display: none; }
-        .edit-form.active { display: table-row; }
-        .delete-selected { margin: 10px 0; padding: 8px 16px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; display: none; }
-        .checkbox-column { width: 30px; text-align: center; }
-    </style>
+    <!-- Admin styles now in styles.css -->
 </head>
 <body>
     <div class="header">
@@ -597,7 +582,7 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
     </div>
 
     <div class="log-section" id="log-section">
-        <h2>Check-in Log Viewer (Showing most recent 200 entries)</h2>
+        <h2>Check-in Log</h2>
         <div class="log-controls">
             <button id="view-log-btn">View Log</button>
             <button id="edit-log-btn">Edit Log</button>
@@ -605,79 +590,37 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         </div>
 
         <div class="log-viewer" id="log-viewer">
+            <div class="log-search-bar">
+                <input type="text" id="log-viewer-search" placeholder="Search by name, group, department...">
+                <span class="result-count" id="log-viewer-count"></span>
+            </div>
             <table>
                 <thead>
                     <tr><th>Timestamp</th><th>Full Name</th><th>User Group</th><th>Department</th><th>Classification</th><th>Visit #</th><th>Agreement</th></tr>
                 </thead>
-                <tbody>
-                    <?php foreach (array_slice($logEntries, 0, 200) as $entry): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($entry['timestamp']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['fullName']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['userGroup']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['department']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['classification']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['visitCount']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['agreementStatus']); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
+                <tbody id="log-viewer-body">
+                    <tr><td colspan="7" style="text-align:center; padding:20px;">Click "View Log" to load entries...</td></tr>
                 </tbody>
             </table>
+            <div class="log-pagination" id="log-viewer-pagination"></div>
         </div>
 
         <div class="log-editor" id="log-editor">
+            <div class="log-search-bar">
+                <input type="text" id="log-editor-search" placeholder="Search by name, group, department...">
+                <span class="result-count" id="log-editor-count"></span>
+            </div>
             <table>
                 <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Full Name</th>
-                        <th>User Group</th>
-                        <th>Department</th>
-                        <th>Classification</th>
-                        <th>Visit #</th>
-                        <th>Actions</th>
-                    </tr>
+                    <tr><th>Timestamp</th><th>Full Name</th><th>User Group</th><th>Department</th><th>Classification</th><th>Visit #</th><th>Actions</th></tr>
                 </thead>
-                <tbody>
-                    <?php foreach (array_slice($logEntries, 0, 200) as $entry): ?>
-                        <!-- Display Row -->
-                        <tr id="view-row-<?php echo $entry['id']; ?>">
-                            <td><?php echo htmlspecialchars($entry['timestamp']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['fullName']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['userGroup']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['department']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['classification']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['visitCount']); ?></td>
-                            <td class="actions">
-                                <button type="button" class="button" onclick="showEditForm(<?php echo $entry['id']; ?>)">Edit</button>
-                                <form method="POST" style="display:inline; margin:0; padding:0;">
-                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                    <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
-                                    <button type="submit" name="delete_entry" value="delete" class="button" onclick="return confirm('Are you sure you want to delete this entry?');">Delete</button>
-                                </form>
-                            </td>
-                        </tr>
-                        <!-- Edit Form Row (hidden by default) -->
-                        <tr id="edit-row-<?php echo $entry['id']; ?>" class="edit-form">
-                            <td colspan="7">
-                                <form method="POST" style="display:inline; margin:0; padding:0;">
-                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                    <input type="hidden" name="entry_id" value="<?php echo $entry['id']; ?>">
-                                    <input type="text" name="timestamp" value="<?php echo htmlspecialchars($entry['timestamp']); ?>" readonly>
-                                    <input type="text" name="fullName" value="<?php echo htmlspecialchars($entry['fullName']); ?>">
-                                    <input type="text" name="userGroup" value="<?php echo htmlspecialchars($entry['userGroup']); ?>">
-                                    <input type="text" name="department" value="<?php echo htmlspecialchars($entry['department']); ?>">
-                                    <input type="text" name="classification" value="<?php echo htmlspecialchars($entry['classification']); ?>">
-                                    <input type="number" name="visitCount" value="<?php echo htmlspecialchars($entry['visitCount']); ?>">
-                                    <button type="submit" name="save_entry" value="save" class="button">Save</button>
-                                    <button type="button" class="button" onclick="hideEditForm(<?php echo $entry['id']; ?>)">Cancel</button>
-                                </form>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
+                <tbody id="log-editor-body">
+                    <tr><td colspan="7" style="text-align:center; padding:20px;">Click "Edit Log" to load entries...</td></tr>
                 </tbody>
             </table>
+            <div class="log-pagination" id="log-editor-pagination"></div>
         </div>
+    </div>
 
     <div class="debug-section">
         <h2>Debug Controls</h2>
@@ -703,24 +646,152 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
     </div>
 
     <script>
+        const CSRF_TOKEN = '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>';
+        const ITEMS_PER_PAGE = 50;
         let currentMonth = '<?php echo date('Y-m'); ?>';
         let dailyData = {};
+        let logEntriesCache = null;
+        let viewerState = { page: 1, search: '', filtered: [] };
+        let editorState = { page: 1, search: '', filtered: [] };
 
+        // ===== Log Data Loading (AJAX - Fix #5) =====
+        async function loadLogEntries() {
+            if (logEntriesCache) return logEntriesCache;
+            const response = await fetch('admin.php?action=get_log_entries');
+            if (!response.ok) throw new Error('Failed to load log entries');
+            const data = await response.json();
+            logEntriesCache = data.entries || [];
+            return logEntriesCache;
+        }
+
+        // ===== Search & Pagination (Fix #11) =====
+        function filterEntries(entries, search) {
+            if (!search) return entries;
+            const q = search.toLowerCase();
+            return entries.filter(e =>
+                (e.fullName || '').toLowerCase().includes(q) ||
+                (e.userGroup || '').toLowerCase().includes(q) ||
+                (e.department || '').toLowerCase().includes(q) ||
+                (e.classification || '').toLowerCase().includes(q) ||
+                (e.timestamp || '').toLowerCase().includes(q) ||
+                (e.purdueId || '').toLowerCase().includes(q)
+            );
+        }
+
+        function esc(str) {
+            const d = document.createElement('div');
+            d.textContent = str ?? '';
+            return d.innerHTML;
+        }
+
+        function renderPagination(containerId, state, renderFn) {
+            const container = document.getElementById(containerId);
+            const totalPages = Math.max(1, Math.ceil(state.filtered.length / ITEMS_PER_PAGE));
+            if (totalPages <= 1) { container.innerHTML = ''; return; }
+            container.innerHTML = `
+                <button onclick="changePage('${containerId}', -1)" ${state.page <= 1 ? 'disabled' : ''}>&laquo; Prev</button>
+                <span class="page-info">Page ${state.page} of ${totalPages}</span>
+                <button onclick="changePage('${containerId}', 1)" ${state.page >= totalPages ? 'disabled' : ''}>Next &raquo;</button>
+            `;
+        }
+
+        function changePage(paginationId, direction) {
+            const isViewer = paginationId === 'log-viewer-pagination';
+            const state = isViewer ? viewerState : editorState;
+            const totalPages = Math.ceil(state.filtered.length / ITEMS_PER_PAGE);
+            state.page = Math.max(1, Math.min(totalPages, state.page + direction));
+            isViewer ? renderViewerTable() : renderEditorTable();
+        }
+
+        function renderViewerTable() {
+            const tbody = document.getElementById('log-viewer-body');
+            const start = (viewerState.page - 1) * ITEMS_PER_PAGE;
+            const pageEntries = viewerState.filtered.slice(start, start + ITEMS_PER_PAGE);
+            document.getElementById('log-viewer-count').textContent = `${viewerState.filtered.length} entries`;
+
+            if (pageEntries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">No entries found.</td></tr>';
+            } else {
+                tbody.innerHTML = pageEntries.map(e => `<tr>
+                    <td>${esc(e.timestamp)}</td><td>${esc(e.fullName)}</td><td>${esc(e.userGroup)}</td>
+                    <td>${esc(e.department)}</td><td>${esc(e.classification)}</td><td>${esc(e.visitCount)}</td>
+                    <td>${esc(e.agreementStatus)}</td>
+                </tr>`).join('');
+            }
+            renderPagination('log-viewer-pagination', viewerState, renderViewerTable);
+        }
+
+        function renderEditorTable() {
+            const tbody = document.getElementById('log-editor-body');
+            const start = (editorState.page - 1) * ITEMS_PER_PAGE;
+            const pageEntries = editorState.filtered.slice(start, start + ITEMS_PER_PAGE);
+            document.getElementById('log-editor-count').textContent = `${editorState.filtered.length} entries`;
+
+            if (pageEntries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">No entries found.</td></tr>';
+            } else {
+                tbody.innerHTML = pageEntries.map(e => `
+                    <tr id="view-row-${e.id}">
+                        <td>${esc(e.timestamp)}</td><td>${esc(e.fullName)}</td><td>${esc(e.userGroup)}</td>
+                        <td>${esc(e.department)}</td><td>${esc(e.classification)}</td><td>${esc(e.visitCount)}</td>
+                        <td class="actions">
+                            <button type="button" class="button" onclick="showEditForm(${e.id})">Edit</button>
+                            <form method="POST" style="display:inline; margin:0; padding:0;">
+                                <input type="hidden" name="csrf_token" value="${CSRF_TOKEN}">
+                                <input type="hidden" name="entry_id" value="${e.id}">
+                                <button type="submit" name="delete_entry" value="delete" class="button" onclick="return confirm('Are you sure you want to delete this entry?');">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr id="edit-row-${e.id}" class="edit-form">
+                        <td colspan="7">
+                            <form method="POST" style="display:inline; margin:0; padding:0;">
+                                <input type="hidden" name="csrf_token" value="${CSRF_TOKEN}">
+                                <input type="hidden" name="entry_id" value="${e.id}">
+                                <input type="text" name="timestamp" value="${esc(e.timestamp)}" readonly>
+                                <input type="text" name="fullName" value="${esc(e.fullName)}">
+                                <input type="text" name="userGroup" value="${esc(e.userGroup)}">
+                                <input type="text" name="department" value="${esc(e.department)}">
+                                <input type="text" name="classification" value="${esc(e.classification)}">
+                                <input type="number" name="visitCount" value="${esc(e.visitCount)}">
+                                <button type="submit" name="save_entry" value="save" class="button">Save</button>
+                                <button type="button" class="button" onclick="hideEditForm(${e.id})">Cancel</button>
+                            </form>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+            renderPagination('log-editor-pagination', editorState, renderEditorTable);
+        }
+
+        // ===== Button Listeners =====
         function setupButtonListeners() {
             const viewLogBtn = document.getElementById('view-log-btn');
             const editLogBtn = document.getElementById('edit-log-btn');
             const viewDebugLogBtn = document.getElementById('view-debug-log-btn');
 
             if (viewLogBtn) {
-                viewLogBtn.addEventListener('click', () => {
+                viewLogBtn.addEventListener('click', async () => {
                     document.getElementById('log-viewer').style.display = 'block';
                     document.getElementById('log-editor').style.display = 'none';
+                    try {
+                        const entries = await loadLogEntries();
+                        viewerState.filtered = filterEntries(entries, viewerState.search);
+                        viewerState.page = 1;
+                        renderViewerTable();
+                    } catch (e) { console.error(e); }
                 });
             }
             if (editLogBtn) {
-                editLogBtn.addEventListener('click', () => {
+                editLogBtn.addEventListener('click', async () => {
                     document.getElementById('log-viewer').style.display = 'none';
                     document.getElementById('log-editor').style.display = 'block';
+                    try {
+                        const entries = await loadLogEntries();
+                        editorState.filtered = filterEntries(entries, editorState.search);
+                        editorState.page = 1;
+                        renderEditorTable();
+                    } catch (e) { console.error(e); }
                 });
             }
             if (viewDebugLogBtn) {
@@ -729,8 +800,32 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                     viewer.style.display = viewer.style.display === 'block' ? 'none' : 'block';
                 });
             }
+
+            // Search inputs with debounce
+            let viewerTimer, editorTimer;
+            document.getElementById('log-viewer-search')?.addEventListener('input', (e) => {
+                clearTimeout(viewerTimer);
+                viewerTimer = setTimeout(async () => {
+                    viewerState.search = e.target.value;
+                    const entries = await loadLogEntries();
+                    viewerState.filtered = filterEntries(entries, viewerState.search);
+                    viewerState.page = 1;
+                    renderViewerTable();
+                }, 300);
+            });
+            document.getElementById('log-editor-search')?.addEventListener('input', (e) => {
+                clearTimeout(editorTimer);
+                editorTimer = setTimeout(async () => {
+                    editorState.search = e.target.value;
+                    const entries = await loadLogEntries();
+                    editorState.filtered = filterEntries(entries, editorState.search);
+                    editorState.page = 1;
+                    renderEditorTable();
+                }, 300);
+            });
         }
 
+        // ===== Calendar =====
         async function loadCalendarAndGraph() {
             try {
                 dailyData = await fetchMonthData(currentMonth);
@@ -749,7 +844,6 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
         document.addEventListener('DOMContentLoaded', () => {
             setupButtonListeners();
             loadCalendarAndGraph();
-            // Hide all log views by default
             document.getElementById('log-viewer').style.display = 'none';
             document.getElementById('log-editor').style.display = 'none';
             document.getElementById('debug-log-viewer').style.display = 'none';
@@ -805,8 +899,34 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
             for (let day = 1; day <= remainingDays; day++) { calendarHtml += `<div class="calendar-day other-month"><div class="day-number">${day}</div></div>`; }
             grid.innerHTML = `<div class="calendar-header">Sun</div><div class="calendar-header">Mon</div><div class="calendar-header">Tue</div><div class="calendar-header">Wed</div><div class="calendar-header">Thu</div><div class="calendar-header">Fri</div><div class="calendar-header">Sat</div>`;
             grid.insertAdjacentHTML('beforeend', calendarHtml);
+
+            // Fix #9: Tooltip edge-awareness
+            grid.querySelectorAll('.calendar-day').forEach(cell => {
+                const tooltip = cell.querySelector('.usage-breakdown');
+                if (!tooltip) return;
+                cell.addEventListener('mouseenter', () => {
+                    tooltip.style.left = '';
+                    tooltip.style.right = '';
+                    tooltip.style.top = '';
+                    tooltip.style.bottom = '';
+                    const cellRect = cell.getBoundingClientRect();
+                    const gridRect = grid.getBoundingClientRect();
+                    // Flip horizontally if too close to right edge
+                    if (cellRect.right + 160 > window.innerWidth) {
+                        tooltip.style.right = '0';
+                    } else {
+                        tooltip.style.left = '0';
+                    }
+                    // Flip vertically if too close to bottom
+                    if (cellRect.bottom + 100 > window.innerHeight) {
+                        tooltip.style.bottom = '100%';
+                    } else {
+                        tooltip.style.top = '100%';
+                    }
+                });
+            });
         }
-        
+
         async function changeMonth(direction) {
             const [year, month] = currentMonth.split('-');
             const newDate = new Date(year, (direction === 'next' ? parseInt(month) : parseInt(month) - 2));
@@ -834,7 +954,7 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                 document.head.appendChild(script);
             });
         }
-        
+
         function initializeGraph() {
             const ctx = document.getElementById('usageGraph').getContext('2d');
             const data = <?php echo json_encode($graphData); ?>;
@@ -851,7 +971,8 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                 }
             });
         }
-                function showEditForm(id) {
+
+        function showEditForm(id) {
             document.getElementById(`view-row-${id}`).style.display = 'none';
             document.getElementById(`edit-row-${id}`).style.display = 'table-row';
         }
