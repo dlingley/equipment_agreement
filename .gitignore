@@ -9,4 +9,6 @@ config.php
 ._admin.php
 ._*
 .DS_Store
+fullcode.txt
+.aicodeprep-gui
 
