@@ -777,7 +777,8 @@ $graphData = ['labels' => $months, 'datasets' => $datasets];
                 const dayData = dailyData[dateStr] || { total: 0, groups: {} };
                 let heatLevel = 0;
                 if (dayData.total > 0) heatLevel = 1; if (dayData.total >= 5) heatLevel = 2; if (dayData.total >= 10) heatLevel = 3; if (dayData.total >= 20) heatLevel = 4; if (dayData.total >= 30) heatLevel = 5;
-                const todayClass = dateStr === new Date().toISOString().split('T')[0] ? ' calendar-today' : '';
+                const now = new Date(); const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+                const todayClass = dateStr === todayStr ? ' calendar-today' : '';
                 let breakdownHtml = '<ul style="margin: 0; padding-left: 20px;">';
                 for (const [group, count] of Object.entries(dayData.groups)) { breakdownHtml += `<li>${group}: ${count}</li>`; }
                 breakdownHtml += '</ul>';
