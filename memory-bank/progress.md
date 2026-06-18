@@ -42,7 +42,7 @@
     - [x] Sticky report table headers for long scrolling data sets
   - [x] Calendar view with heat map
   - [x] Daily check-in visualization
-  - [x] Log section quick-load: auto-loads check-in log on page load and toggles active classes for log view/edit buttons
+  - [x] Log section quick-load: pre-fetches check-in log on page load in the background (caching it) and toggles active classes for log view/edit buttons when clicked
 
 ### Session Management
 - [x] Secure cookie settings

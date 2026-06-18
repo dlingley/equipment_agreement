@@ -19,7 +19,7 @@
 
 ### Admin Dashboard Usability Enhancements
 - **Sticky Table Headers:** Made `thead th` sticky within `.report-table-container` using `position: sticky` and an inset box-shadow to keep column headers visible and visually distinct while scrolling through long data tables.
-- **Log Section Auto-Loading:** Redesigned the check-in log interface to auto-load the viewer on initial page load (firing `loadLogEntries()` automatically) to eliminate clicks for the viewer.
+- **Log Section Quick-Load:** Redesigned the check-in log interface to pre-fetch log entries in the background during page load (`loadLogEntries()`), caching them so that the table renders instantly when the user clicks "View Log" or "Edit Log".
 - **Tab/Button State Highlighting:** Implemented active state toggles (`.active`) for the "View Log" and "Edit Log" buttons, styled with Purdue gold (`#8E6F3E`) to indicate which log mode is currently active.
 
 ### Check-in Log Permission & Data Recovery

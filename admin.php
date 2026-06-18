@@ -1173,25 +1173,21 @@ $uniqueCount = count($uniqueVisitors);
             }
         }
 
-        document.addEventListener('DOMContentLoaded', async () => {
+        document.addEventListener('DOMContentLoaded', () => {
             setupButtonListeners();
             loadCalendarAndGraph();
             
             const viewLogBtn = document.getElementById('view-log-btn');
             const editLogBtn = document.getElementById('edit-log-btn');
-            if (viewLogBtn) viewLogBtn.classList.add('active');
+            if (viewLogBtn) viewLogBtn.classList.remove('active');
             if (editLogBtn) editLogBtn.classList.remove('active');
             
-            document.getElementById('log-viewer').style.display = 'block';
+            document.getElementById('log-viewer').style.display = 'none';
             document.getElementById('log-editor').style.display = 'none';
             document.getElementById('debug-log-viewer').style.display = 'none';
             
-            try {
-                const entries = await loadLogEntries();
-                viewerState.filtered = filterEntries(entries, viewerState.search);
-                viewerState.page = 1;
-                renderViewerTable();
-            } catch (e) { console.error(e); }
+            // Pre-fetch log entries in the background for quick-load when clicked
+            loadLogEntries().catch(e => console.error(e));
         });
 
         function navigateToPreviousMonth() { changeMonth('prev'); }
