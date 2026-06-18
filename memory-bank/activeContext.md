@@ -17,6 +17,12 @@
 
 ## Recent Changes
 
+### Check-in Log Permission & Data Recovery
+- **Permission Fix:** Recreated `logs/checkin_log.json` under `www-data` ownership with `0666` permissions to resolve permission mismatch between command-line operations (running as `dlingley`) and web-server logging processes (running as `www-data`).
+- **Archives Permission Fix:** Granted `BOILERAD\00000333-web alma` (web server user) full inheritance/modify permissions on [logs/archives](file:///webapps.lib.purdue.edu/alma$/equipment_agreement/logs/archives) folder, resolving a permission block that caused the June 1st log rotation to fail to write the archive file.
+- **May 2026 Data Recovery:** Recovered 839 unique check-in entries for the month of May 2026 by combining [checkin_log.json.bak](file:///webapps.lib.purdue.edu/alma$/equipment_agreement/logs/checkin_log.json.bak) (May 1 – May 20) and [debug.log](file:///webapps.lib.purdue.edu/alma$/equipment_agreement/logs/debug.log) (May 21 – May 31), de-duplicating them, and restoring them to [checkin_2026_05.json](file:///webapps.lib.purdue.edu/alma$/equipment_agreement/logs/archives/checkin_2026_05.json).
+- **Previous Data Recovery:** Parsed `logs/debug.log` to recover 32 check-ins from May 21st and May 26th that failed to write to the main check-in log during the permission lock and successfully appended them back to `logs/checkin_log.json`.
+
 ### Department Usage Dashboard & Accessibility Enhancements
 - **Tabbed Dashboard Reports:** Integrated HTML/CSS tabs allowing admins to toggle between "User Group" and "Department" charts and tables seamlessly.
 - **Top 10 Filtering:** Solved visual clutter by sorting usage and displaying the top 10 departments individually, with remaining check-ins aggregated into a single "Other Departments" dataset.

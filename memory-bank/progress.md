@@ -53,6 +53,9 @@
 - [x] Secure session directory access control (.htaccess protection)
 - [x] Sliding session heartbeat/keepalive for both regular users and administrators
 - [x] Correct session initialization order across all entry points (fixing initialization gotchas)
+- [x] Check-in log permission mismatch fixed and ownership aligned with `www-data`
+- [x] Recovered 32 missing check-in entries from debug logs into main check-in log
+- [x] Recovered missing May 2026 check-in log (839 entries) and fixed `logs/archives` directory permissions to allow automatic monthly log rotation to succeed
 - [x] Repository Housekeeping: obsolete log files deleted, macOS `._*` AppleDouble files ignored, and cross-platform network permissions configured via `core.filemode false`
 
 ## In Progress

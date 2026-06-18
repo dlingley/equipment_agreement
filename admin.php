@@ -668,6 +668,63 @@ $deptGraphData = [
     'labels' => $chartMonths,
     'datasets' => $deptDatasets
 ];
+
+// ===== Prepare Year-over-Year Trend Data =====
+$monthlyTotals = []; // ['YYYY-MM' => total_count]
+foreach ($usageReport as $month => $groups) {
+    $monthlyTotals[$month] = array_sum($groups);
+}
+// Group by year
+$yearlyData = [];
+foreach ($monthlyTotals as $monthKey => $total) {
+    $parts = explode('-', $monthKey);
+    $year = $parts[0];
+    $monthNum = intval($parts[1]); // 1-12
+    $yearlyData[$year][$monthNum] = $total;
+}
+ksort($yearlyData);
+
+$yoyLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+$yoyDatasets = [];
+$yoyPalette = [
+    '#CFB991', // Purdue Old Gold
+    '#1D1D1B', // Purdue Black
+    '#8E6F3E', // Purdue Boilermaker Gold
+    '#0072B2', // Deep Blue
+    '#D55E00', // Vermillion
+];
+$yoyPointStyles = ['circle', 'triangle', 'rect', 'rectRot', 'star'];
+$yoyBorderDashes = [[], [6, 4], [2, 3], [10, 4], [6, 3, 2, 3]];
+
+$yoyIndex = 0;
+foreach ($yearlyData as $year => $monthData) {
+    $data = [];
+    for ($m = 1; $m <= 12; $m++) {
+        $data[] = $monthData[$m] ?? null; // null so Chart.js skips gaps
+    }
+    $color = $yoyPalette[$yoyIndex % count($yoyPalette)];
+    $yoyDatasets[] = [
+        'label' => (string)$year,
+        'data' => $data,
+        'borderColor' => $color,
+        'backgroundColor' => $color . '33',
+        'borderWidth' => 3,
+        'fill' => false,
+        'tension' => 0.3,
+        'pointStyle' => $yoyPointStyles[$yoyIndex % count($yoyPointStyles)],
+        'borderDash' => $yoyBorderDashes[$yoyIndex % count($yoyBorderDashes)],
+        'pointRadius' => 6,
+        'pointHoverRadius' => 9,
+        'pointBorderWidth' => 2,
+        'spanGaps' => false
+    ];
+    $yoyIndex++;
+}
+
+$yoyGraphData = [
+    'labels' => $yoyLabels,
+    'datasets' => $yoyDatasets
+];
 ?>
 
 <!DOCTYPE html>
@@ -704,6 +761,7 @@ $deptGraphData = [
         <div class="graph-tabs">
             <button class="tab-btn active" onclick="switchGraph('userGroup', this)">Check-ins by User Group</button>
             <button class="tab-btn" onclick="switchGraph('department', this)">Check-ins by Department</button>
+            <button class="tab-btn" onclick="switchGraph('yearOverYear', this)">Year-over-Year Trend</button>
         </div>
         <div class="canvas-container">
             <canvas id="usageGraph" role="img" aria-label="Usage chart showing check-ins by user group or department over time. Refer to the data tables below for detailed text values."></canvas>
@@ -714,6 +772,7 @@ $deptGraphData = [
         <div class="report-tabs">
             <button class="tab-btn active" onclick="switchReport('userGroup', this)">Monthly Usage by User Group</button>
             <button class="tab-btn" onclick="switchReport('department', this)">Monthly Usage by Department</button>
+            <button class="tab-btn" onclick="switchReport('yearOverYear', this)">Year-over-Year Totals</button>
         </div>
         
         <div id="user-group-report" class="report-table-container">
@@ -740,6 +799,32 @@ $deptGraphData = [
                         ?>
                             <tr><td><?php echo htmlspecialchars($month); ?></td><td><?php echo htmlspecialchars($dept); ?></td><td><?php echo htmlspecialchars($count); ?></td></tr>
                         <?php endforeach; ?>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="year-over-year-report" class="report-table-container" style="display: none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th>
+                        <th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($yearlyData as $year => $monthData):
+                        $yearTotal = array_sum($monthData);
+                    ?>
+                        <tr>
+                            <td><strong><?php echo htmlspecialchars($year); ?></strong></td>
+                            <?php for ($m = 1; $m <= 12; $m++): ?>
+                                <td><?php echo isset($monthData[$m]) ? number_format($monthData[$m]) : '—'; ?></td>
+                            <?php endfor; ?>
+                            <td><strong><?php echo number_format($yearTotal); ?></strong></td>
+                        </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
@@ -1123,6 +1208,7 @@ $deptGraphData = [
         let usageChart = null;
         const userGroupGraphData = <?php echo json_encode($graphData); ?>;
         const departmentGraphData = <?php echo json_encode($deptGraphData); ?>;
+        const yoyGraphData = <?php echo json_encode($yoyGraphData); ?>;
 
         function initializeGraph() {
             renderGraph('userGroup');
@@ -1171,6 +1257,42 @@ $deptGraphData = [
                         scales: { y: { beginAtZero: true } }
                     }
                 });
+            } else if (type === 'yearOverYear') {
+                usageChart = new Chart(ctx, {
+                    type: 'line',
+                    data: yoyGraphData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: 'Year-over-Year Check-in Trend' },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    usePointStyle: true,
+                                    padding: 15
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const val = context.parsed.y;
+                                        if (val === null) return context.dataset.label + ': No data';
+                                        return context.dataset.label + ': ' + val.toLocaleString() + ' check-ins';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: 'Total Check-ins' }
+                            },
+                            x: {
+                                title: { display: true, text: 'Month' }
+                            }
+                        }
+                    }
+                });
             }
         }
 
@@ -1188,12 +1310,15 @@ $deptGraphData = [
             });
             btn.classList.add('active');
 
+            document.getElementById('user-group-report').style.display = 'none';
+            document.getElementById('department-report').style.display = 'none';
+            document.getElementById('year-over-year-report').style.display = 'none';
             if (type === 'userGroup') {
                 document.getElementById('user-group-report').style.display = 'block';
-                document.getElementById('department-report').style.display = 'none';
-            } else {
-                document.getElementById('user-group-report').style.display = 'none';
+            } else if (type === 'department') {
                 document.getElementById('department-report').style.display = 'block';
+            } else if (type === 'yearOverYear') {
+                document.getElementById('year-over-year-report').style.display = 'block';
             }
         }
 
