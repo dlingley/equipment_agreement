@@ -1100,6 +1100,8 @@ $uniqueCount = count($uniqueVisitors);
 
             if (viewLogBtn) {
                 viewLogBtn.addEventListener('click', async () => {
+                    viewLogBtn.classList.add('active');
+                    if (editLogBtn) editLogBtn.classList.remove('active');
                     document.getElementById('log-viewer').style.display = 'block';
                     document.getElementById('log-editor').style.display = 'none';
                     try {
@@ -1112,6 +1114,8 @@ $uniqueCount = count($uniqueVisitors);
             }
             if (editLogBtn) {
                 editLogBtn.addEventListener('click', async () => {
+                    editLogBtn.classList.add('active');
+                    if (viewLogBtn) viewLogBtn.classList.remove('active');
                     document.getElementById('log-viewer').style.display = 'none';
                     document.getElementById('log-editor').style.display = 'block';
                     try {
@@ -1169,12 +1173,25 @@ $uniqueCount = count($uniqueVisitors);
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             setupButtonListeners();
             loadCalendarAndGraph();
-            document.getElementById('log-viewer').style.display = 'none';
+            
+            const viewLogBtn = document.getElementById('view-log-btn');
+            const editLogBtn = document.getElementById('edit-log-btn');
+            if (viewLogBtn) viewLogBtn.classList.add('active');
+            if (editLogBtn) editLogBtn.classList.remove('active');
+            
+            document.getElementById('log-viewer').style.display = 'block';
             document.getElementById('log-editor').style.display = 'none';
             document.getElementById('debug-log-viewer').style.display = 'none';
+            
+            try {
+                const entries = await loadLogEntries();
+                viewerState.filtered = filterEntries(entries, viewerState.search);
+                viewerState.page = 1;
+                renderViewerTable();
+            } catch (e) { console.error(e); }
         });
 
         function navigateToPreviousMonth() { changeMonth('prev'); }
