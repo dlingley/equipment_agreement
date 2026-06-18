@@ -725,6 +725,54 @@ $yoyGraphData = [
     'labels' => $yoyLabels,
     'datasets' => $yoyDatasets
 ];
+
+// ===== Quick Stats for Dashboard Cards =====
+$currentMonthKey = date('Y-m');
+$todayStr = date('Y-m-d');
+
+// Month total from already-computed usage report
+$monthCheckins = isset($usageReport[$currentMonthKey]) ? array_sum($usageReport[$currentMonthKey]) : 0;
+
+// Top department from already-computed dept report
+$topDeptName = '—';
+$topDeptCount = 0;
+if (isset($deptUsageReport[$currentMonthKey])) {
+    $deptsSorted = $deptUsageReport[$currentMonthKey];
+    arsort($deptsSorted);
+    $topDeptName = key($deptsSorted);
+    $topDeptCount = current($deptsSorted);
+}
+
+// Today's check-ins + unique visitors require a log scan
+$todayCheckins = 0;
+$uniqueVisitors = [];
+if (isset($config['LOG_PATHS']['CHECKIN'])) {
+    $statsLogPath = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
+    $statsLogFiles = [$statsLogPath];
+    $statsArchive = dirname($statsLogPath) . '/archives/checkin_' . str_replace('-', '_', $currentMonthKey) . '.json';
+    if (is_readable($statsArchive)) $statsLogFiles[] = $statsArchive;
+
+    foreach ($statsLogFiles as $sf) {
+        if (!is_readable($sf)) continue;
+        $handle = fopen($sf, 'r');
+        if (!$handle) continue;
+        while (($line = fgets($handle)) !== false) {
+            $data = parseLogLine($line);
+            if ($data === null) continue;
+            try {
+                $dt = new DateTime($data['timestamp']);
+                if ($dt->format('Y-m') === $currentMonthKey) {
+                    $uniqueVisitors[$data['purdueId']] = true;
+                    if ($dt->format('Y-m-d') === $todayStr) {
+                        $todayCheckins++;
+                    }
+                }
+            } catch (Exception $e) { continue; }
+        }
+        fclose($handle);
+    }
+}
+$uniqueCount = count($uniqueVisitors);
 ?>
 
 <!DOCTYPE html>
@@ -748,6 +796,25 @@ $yoyGraphData = [
         </div>
     </div>
 
+    <div class="stats-cards">
+        <div class="stat-card">
+            <div class="stat-value"><?php echo $todayCheckins; ?></div>
+            <div class="stat-label">Today’s Check-ins</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value"><?php echo number_format($monthCheckins); ?></div>
+            <div class="stat-label"><?php echo date('F'); ?> Check-ins</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value"><?php echo number_format($uniqueCount); ?></div>
+            <div class="stat-label">Unique Visitors (<?php echo date('M'); ?>)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value stat-value-text" title="<?php echo htmlspecialchars($topDeptName); ?>"><?php echo htmlspecialchars($topDeptName); ?></div>
+            <div class="stat-label">Top Dept (<?php echo number_format($topDeptCount); ?> visits)</div>
+        </div>
+    </div>
+
     <div class="calendar-section">
         <div class="calendar-controls">
             <button onclick="navigateToPreviousMonth()">&lt; Previous</button>
@@ -755,6 +822,17 @@ $yoyGraphData = [
             <button onclick="navigateToNextMonth()">&gt; Next</button>
         </div>
         <div class="calendar-grid"></div>
+        <div class="calendar-legend">
+            <span class="legend-label">Fewer</span>
+            <span class="legend-swatch heat-0"></span>
+            <span class="legend-swatch heat-1"></span>
+            <span class="legend-swatch heat-2"></span>
+            <span class="legend-swatch heat-3"></span>
+            <span class="legend-swatch heat-4"></span>
+            <span class="legend-swatch heat-5"></span>
+            <span class="legend-label">More</span>
+            <span class="legend-counts">0 · 1–4 · 5–9 · 10–19 · 20–29 · 30+</span>
+        </div>
     </div>
     
     <div class="graph-container">
