@@ -39,8 +39,10 @@
     - [x] Colorblind-friendly styling (distinct colors, dash patterns, and point shapes)
     - [x] Tabbed views for charts and tables
     - [x] Custom styled scrollbars with gold styling
+    - [x] Sticky report table headers for long scrolling data sets
   - [x] Calendar view with heat map
   - [x] Daily check-in visualization
+  - [x] Log section quick-load: auto-loads check-in log on page load and toggles active classes for log view/edit buttons
 
 ### Session Management
 - [x] Secure cookie settings

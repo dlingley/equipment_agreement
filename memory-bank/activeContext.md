@@ -17,6 +17,11 @@
 
 ## Recent Changes
 
+### Admin Dashboard Usability Enhancements
+- **Sticky Table Headers:** Made `thead th` sticky within `.report-table-container` using `position: sticky` and an inset box-shadow to keep column headers visible and visually distinct while scrolling through long data tables.
+- **Log Section Auto-Loading:** Redesigned the check-in log interface to auto-load the viewer on initial page load (firing `loadLogEntries()` automatically) to eliminate clicks for the viewer.
+- **Tab/Button State Highlighting:** Implemented active state toggles (`.active`) for the "View Log" and "Edit Log" buttons, styled with Purdue gold (`#8E6F3E`) to indicate which log mode is currently active.
+
 ### Check-in Log Permission & Data Recovery
 - **Permission Fix:** Recreated `logs/checkin_log.json` under `www-data` ownership with `0666` permissions to resolve permission mismatch between command-line operations (running as `dlingley`) and web-server logging processes (running as `www-data`).
 - **Archives Permission Fix:** Granted `BOILERAD\00000333-web alma` (web server user) full inheritance/modify permissions on [logs/archives](file:///webapps.lib.purdue.edu/alma$/equipment_agreement/logs/archives) folder, resolving a permission block that caused the June 1st log rotation to fail to write the archive file.
