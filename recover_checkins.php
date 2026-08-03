@@ -37,48 +37,70 @@ if (!is_writable($checkinLogPath)) {
     die("ERROR: The checkin_log.json file is not writable. Please run this script with sudo.\n");
 }
 
-echo "Source Debug Log: $debugLogPath\n";
-echo "Target Check-in Log: $checkinLogPath\n\n";
+$archiveDir = __DIR__ . '/' . dirname($config['LOG_PATHS']['CHECKIN']) . '/archives';
+if (!is_dir($archiveDir)) {
+    mkdir($archiveDir, 0775, true);
+    @chmod($archiveDir, 0775);
+}
 
-// 1. Index all existing check-ins for very fast lookups
-echo "Indexing existing entries in checkin_log.json...\n";
+echo "Source Debug Log: $debugLogPath\n";
+echo "Target Check-in Log: $checkinLogPath\n";
+echo "Archive Directory: $archiveDir\n\n";
+
+// 1. Index all existing check-ins across main log AND archive files
+echo "Indexing existing entries in checkin_log.json and archives...\n";
 $existingEntries = [];
-$handle = fopen($checkinLogPath, 'r');
-if ($handle) {
-    while (($line = fgets($handle)) !== false) {
-        $data = json_decode(trim($line), true);
-        if ($data && isset($data['purdueId'], $data['timestamp'])) {
-            $key = "{$data['purdueId']}-{$data['timestamp']}";
-            $existingEntries[$key] = true;
+
+$indexFile = function($filePath) use (&$existingEntries) {
+    if (!is_readable($filePath)) return;
+    $handle = fopen($filePath, 'r');
+    if ($handle) {
+        while (($line = fgets($handle)) !== false) {
+            $data = json_decode(trim($line), true);
+            if ($data && isset($data['purdueId'], $data['timestamp'])) {
+                $key = "{$data['purdueId']}-{$data['timestamp']}";
+                $existingEntries[$key] = true;
+            }
         }
+        fclose($handle);
     }
-    fclose($handle);
+};
+
+$indexFile($checkinLogPath);
+foreach (glob($archiveDir . '/checkin_*.json') as $archFile) {
+    $indexFile($archFile);
 }
 echo "Found " . number_format(count($existingEntries)) . " existing unique entries.\n\n";
 
-
 // 2. Read the debug log line-by-line to find missing entries
 echo "Scanning debug.log for recoverable entries...\n";
-$recoveredEntries = [];
+$recoveredEntriesByMonth = [];
 $potentialEntriesFound = 0;
+$currentMonthKey = date('Y_m');
+
 $handle = fopen($debugLogPath, 'r');
 if ($handle) {
     while (($line = fgets($handle)) !== false) {
-        // Use a regular expression to find and capture the JSON object
         if (preg_match('/\[INFO\] Logged JSON check-in: (\{.*\})/', $line, $matches)) {
             $potentialEntriesFound++;
             $jsonString = $matches[1];
             $data = json_decode($jsonString, true);
 
             if ($data && isset($data['purdueId'], $data['timestamp'])) {
-                // Create a unique fingerprint for this event
                 $key = "{$data['purdueId']}-{$data['timestamp']}";
                 
-                // If this fingerprint does NOT exist in our index, it's a missing entry
                 if (!isset($existingEntries[$key])) {
-                    $recoveredEntries[] = $jsonString;
-                    $existingEntries[$key] = true; // Add to index to prevent duplicates from within the debug log
-                    echo " -> Found missing entry for user {$data['purdueId']} at {$data['timestamp']}\n";
+                    try {
+                        $mKey = (new DateTime($data['timestamp']))->format('Y_m');
+                    } catch (Exception $e) {
+                        $mKey = $currentMonthKey;
+                    }
+                    if (!isset($recoveredEntriesByMonth[$mKey])) {
+                        $recoveredEntriesByMonth[$mKey] = [];
+                    }
+                    $recoveredEntriesByMonth[$mKey][] = json_encode($data) . "\n";
+                    $existingEntries[$key] = true;
+                    echo " -> Found missing entry for user {$data['purdueId']} at {$data['timestamp']} (Month: $mKey)\n";
                 }
             }
         }
@@ -86,30 +108,37 @@ if ($handle) {
     fclose($handle);
 }
 
-echo "\nScan complete. Found $potentialEntriesFound potential entries in the debug log.\n";
+$totalRecovered = array_sum(array_map('count', $recoveredEntriesByMonth));
+echo "\nScan complete. Found $potentialEntriesFound potential entries in debug log. Total missing entries: $totalRecovered\n";
 
-// 3. Append the missing entries to the check-in log
-if (empty($recoveredEntries)) {
-    echo "\nCONCLUSION: No missing entries were found. Your check-in log is already up to date!\n";
+// 3. Write recovered entries to appropriate log/archive files
+if ($totalRecovered === 0) {
+    echo "\nCONCLUSION: No missing entries were found. Your check-in log is up to date!\n";
 } else {
-    echo "Found " . count($recoveredEntries) . " missing entries. Appending them to checkin_log.json...\n";
-    
-    // Open the log file in append mode
-    $handleOut = fopen($checkinLogPath, 'a');
-    if ($handleOut) {
-        foreach ($recoveredEntries as $jsonLine) {
-            fwrite($handleOut, $jsonLine . "\n");
+    foreach ($recoveredEntriesByMonth as $mKey => $lines) {
+        if ($mKey === $currentMonthKey) {
+            $targetFile = $checkinLogPath;
+        } else {
+            $targetFile = $archiveDir . '/checkin_' . $mKey . '.json';
         }
-        fclose($handleOut);
         
-        echo "\n=================================================\n";
-        echo "==              PROCESS COMPLETE               ==\n";
-        echo "=================================================\n";
-        echo "Successfully recovered and appended " . count($recoveredEntries) . " entries.\n";
-        echo "Your check-in log is now fully up to date.\n\n";
-    } else {
-        echo "\nERROR: Could not open checkin_log.json for writing. Recovery failed.\n";
+        echo "Writing " . count($lines) . " recovered entries to $targetFile...\n";
+        $fp = fopen($targetFile, 'a');
+        if ($fp) {
+            foreach ($lines as $l) {
+                fwrite($fp, $l);
+            }
+            fclose($fp);
+            @chmod($targetFile, 0666);
+        } else {
+            echo "ERROR: Could not open $targetFile for appending!\n";
+        }
     }
+    
+    echo "\n=================================================\n";
+    echo "==              PROCESS COMPLETE               ==\n";
+    echo "=================================================\n";
+    echo "Successfully recovered and routed $totalRecovered entries.\n\n";
 }
 
 ?>

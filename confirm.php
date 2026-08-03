@@ -52,7 +52,7 @@ $purdueId = $_SESSION['purdueid'];
 function debugLog($message, $level = 'INFO') {
     global $config;
     date_default_timezone_set($config['TIMEZONE']);
-    $logFile = $config['LOG_PATHS']['DEBUG'];
+    $logFile = dirname(__FILE__) . '/' . $config['LOG_PATHS']['DEBUG'];
     $timestamp = date('Y-m-d H:i:s');
     $logMessage = "[$timestamp] [$level] $message\n";
     file_put_contents($logFile, $logMessage, FILE_APPEND);
@@ -231,7 +231,7 @@ function pushUserNoteAndCheckAgreement($purdueId_input, $config) {
         $classification = $xpath->query("//user_statistic[category_type='semester']/statistic_note")->item(0)->nodeValue ?? 'N/A';
     }
 
-    $checkInLogFile = $config['LOG_PATHS']['CHECKIN'];
+    $checkInLogFile = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
     
     $logVisit = function($agreementStatus) use ($purdueId_official, $checkInLogFile, $fullName, $userGroup, $department, $classification, $campusCode, $userStatus) {
         $visitCount = 0;

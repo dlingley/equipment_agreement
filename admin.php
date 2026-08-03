@@ -70,6 +70,10 @@ error_log("Admin panel initializing at " . date('Y-m-d H:i:s'));
 /**
  * Rotates the check-in log automatically. JSON-ONLY.
  */
+/**
+ * Rotates the check-in log automatically. JSON-ONLY.
+ * Guaranteed safe against data loss if archive writes fail.
+ */
 function rotateCheckinLogIfNeeded($config) {
     if (!isset($config['LOG_PATHS']['CHECKIN'])) return false;
     $checkInLog = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
@@ -83,6 +87,14 @@ function rotateCheckinLogIfNeeded($config) {
     if (!is_dir($archiveDir)) {
         if (!mkdir($archiveDir, 0775, true)) {
             error_log("LOG ROTATION (CHECKIN) FAILED: Could not create archive directory at $archiveDir");
+            return false;
+        }
+        @chmod($archiveDir, 0775);
+    }
+    if (!is_writable($archiveDir)) {
+        @chmod($archiveDir, 0775);
+        if (!is_writable($archiveDir)) {
+            error_log("LOG ROTATION (CHECKIN) FAILED: Archive directory $archiveDir is not writable");
             return false;
         }
     }
@@ -107,15 +119,47 @@ function rotateCheckinLogIfNeeded($config) {
     if (!$hasOldEntries) return true;
 
     error_log("Old checkin entries found. Starting rotation.");
+    $successfullyArchivedMonths = [];
+    $failedMonths = [];
+
     foreach ($entriesByMonth as $month => $entries) {
         if ($month === $currentMonthKey) continue;
         $archiveFile = $archiveDir . '/checkin_' . $month . '.json';
-        file_put_contents($archiveFile, implode('', $entries), FILE_APPEND | LOCK_EX);
+        
+        $contentToAppend = implode('', $entries);
+        $bytesWritten = @file_put_contents($archiveFile, $contentToAppend, FILE_APPEND | LOCK_EX);
+        
+        if ($bytesWritten !== false && $bytesWritten === strlen($contentToAppend)) {
+            @chmod($archiveFile, 0666);
+            $successfullyArchivedMonths[$month] = true;
+        } else {
+            $failedMonths[] = $month;
+            error_log("LOG ROTATION (CHECKIN) ERROR: Failed to write " . count($entries) . " entries for $month to $archiveFile");
+        }
     }
-    $currentMonthEntries = $entriesByMonth[$currentMonthKey] ?? [];
-    file_put_contents($checkInLog, implode('', $currentMonthEntries), LOCK_EX);
-    error_log("Checkin log rotation completed.");
-    return true;
+
+    if (!empty($failedMonths)) {
+        error_log("LOG ROTATION (CHECKIN) ABORTED FULL PRUNING: Archiving failed for month(s): " . implode(', ', $failedMonths) . ". Preserving unarchived entries in main checkin log.");
+    }
+
+    // Keep current month entries PLUS any entries from months where archiving failed
+    $remainingEntries = [];
+    foreach ($entriesByMonth as $month => $entries) {
+        if ($month === $currentMonthKey || !isset($successfullyArchivedMonths[$month])) {
+            foreach ($entries as $eLine) {
+                $remainingEntries[] = $eLine;
+            }
+        }
+    }
+
+    if (file_put_contents($checkInLog, implode('', $remainingEntries), LOCK_EX) !== false) {
+        @chmod($checkInLog, 0666);
+        error_log("Checkin log rotation completed. Retained " . count($remainingEntries) . " entries in main log.");
+        return empty($failedMonths);
+    } else {
+        error_log("LOG ROTATION (CHECKIN) ERROR: Could not rewrite main log file $checkInLog");
+        return false;
+    }
 }
 
 /**
@@ -129,7 +173,7 @@ function rotateDebugLogIfNeeded($config) {
     $archiveDir = dirname($debugLogFile) . '/archives';
     if (!is_file($debugLogFile) || !is_readable($debugLogFile)) return false;
     if (filesize($debugLogFile) > $maxSizeBytes) {
-        error_log("Debug log exceeds ${maxSizeMb}MB. Starting rotation.");
+        error_log("Debug log exceeds {$maxSizeMb}MB. Starting rotation.");
         if (!is_dir($archiveDir)) {
             if (!mkdir($archiveDir, 0775, true)) {
                 error_log("LOG ROTATION (DEBUG) FAILED: Could not create archive directory at $archiveDir");
@@ -410,7 +454,10 @@ function parseLogLine($line) {
 }
 
 function readLogMemorySafe($filePath, &$entries) {
-    if (!is_readable($filePath)) return;
+    if (!is_readable($filePath)) {
+        @chmod($filePath, 0666);
+        if (!is_readable($filePath)) return;
+    }
     $handle = fopen($filePath, 'r');
     if ($handle) {
         while (($line = fgets($handle)) !== false) {
@@ -429,8 +476,12 @@ function getCheckinLogEntries($config) {
     $entries = [];
     $checkInLog = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
     $archiveDir = dirname($checkInLog) . '/archives';
+    if (is_dir($archiveDir) && !is_readable($archiveDir)) {
+        @chmod($archiveDir, 0775);
+    }
     readLogMemorySafe($checkInLog, $entries);
-    foreach (glob($archiveDir . '/checkin_*.json') as $archiveFile) {
+    $archiveFiles = glob($archiveDir . '/checkin_*.json') ?: [];
+    foreach ($archiveFiles as $archiveFile) {
         readLogMemorySafe($archiveFile, $entries);
     }
     usort($entries, fn($a, $b) => strtotime($b['timestamp']) - strtotime($a['timestamp']));
