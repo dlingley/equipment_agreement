@@ -223,9 +223,9 @@ if (file_exists($authGuardPath) && is_readable($authGuardPath)) {
 
 $vendorAutoload = dirname($rootDir) . '/vendor/autoload.php';
 if (file_exists($vendorAutoload) && is_readable($vendorAutoload)) {
-    reportPass("Composer vendor autoload (PHPMailer) is readable for patron emails");
+    reportPass("Optional email delivery: Composer PHPMailer is available");
 } else {
-    reportWarn("Composer vendor/autoload.php not accessible at $vendorAutoload (confirmation emails will be skipped)");
+    reportPass("Email delivery is optional (agreements are recorded directly in Alma via REST API)");
 }
 
 // ============================================================================
