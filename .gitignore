@@ -13,4 +13,7 @@ fullcode.txt
 .aicodeprep-gui
 *.log
 php_errors.log
+allowed_users.txt
+allowed_users.txt.bak
+*.bak
 

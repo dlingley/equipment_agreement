@@ -55,7 +55,8 @@ if ($isSuperAdmin && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $messageType = 'error';
             } else {
                 $acl[$username] = $role;
-                if (acl_write($aclFile, $acl)) {
+                $actionDesc = ($action === 'add' ? "Added user '$username' ($role)" : "Updated user '$username' to role '$role'");
+                if (acl_write($aclFile, $acl, $authUser->username, $actionDesc)) {
                     $message = ($action === 'add' ? 'Added ' : 'Updated ') . htmlspecialchars($username) . " as $role.";
                     $messageType = 'success';
                 } else {
@@ -72,7 +73,8 @@ if ($isSuperAdmin && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $messageType = 'error';
             } else {
                 unset($acl[$username]);
-                if (acl_write($aclFile, $acl)) {
+                $actionDesc = "Removed user '$username'";
+                if (acl_write($aclFile, $acl, $authUser->username, $actionDesc)) {
                     $message = 'Removed ' . htmlspecialchars($username) . '.';
                     $messageType = 'success';
                 } else {
@@ -84,7 +86,24 @@ if ($isSuperAdmin && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-function acl_write($filePath, array $acl) {
+function acl_write($filePath, array $acl, $actingUser = null, $actionDesc = '') {
+    // 1. Attempt self-healing permission repair if file is not writable
+    if (file_exists($filePath) && !is_writable($filePath)) {
+        @chmod($filePath, 0666);
+    }
+
+    // 2. Automated rolling backup of allowed_users.txt before writing
+    if (file_exists($filePath) && filesize($filePath) > 0) {
+        @copy($filePath, $filePath . '.bak');
+        $archiveDir = __DIR__ . '/logs/archives';
+        if (!is_dir($archiveDir)) {
+            @mkdir($archiveDir, 0777, true);
+        }
+        if (is_dir($archiveDir) && is_writable($archiveDir)) {
+            @copy($filePath, $archiveDir . '/allowed_users_' . date('Y_m_d_His') . '.bak');
+        }
+    }
+
     $lines = [
         '# Knowledge Lab Equipment Agreement — Access Control',
         '# Format: purdue_username[:superadmin|:admin|:user]',
@@ -110,15 +129,45 @@ function acl_write($filePath, array $acl) {
     }
     $lines[] = '';
     $content = implode("\n", $lines);
+
     // Try with exclusive lock, fallback to standard write if filesystem lock fails
     $res = @file_put_contents($filePath, $content, LOCK_EX);
     if ($res === false) {
         $res = @file_put_contents($filePath, $content);
     }
-    return $res !== false;
+
+    if ($res !== false) {
+        // Enforce 0666 permissions so web server and CLI retain shared access
+        @chmod($filePath, 0666);
+
+        // Record entry in user audit log
+        $logDir = __DIR__ . '/logs';
+        if (is_dir($logDir) && is_writable($logDir)) {
+            $actor = $actingUser ?? 'system';
+            $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+            $logEntry = sprintf(
+                "[%s] [USER_MGR] Actor: %s (%s) | Action: %s | Total: %d users\n",
+                date('Y-m-d H:i:s'),
+                $actor,
+                $ip,
+                $actionDesc ?: 'Updated ACL',
+                count($acl)
+            );
+            @file_put_contents($logDir . '/user_management.log', $logEntry, FILE_APPEND | LOCK_EX);
+        }
+        return true;
+    }
+    return false;
 }
 
 $acl = auth_load_acl($aclFile);
+
+// Pre-flight file permission check & auto-healing
+$aclWritable = is_writable($aclFile);
+if (!$aclWritable && file_exists($aclFile)) {
+    @chmod($aclFile, 0666);
+    $aclWritable = is_writable($aclFile);
+}
 
 $roleLabels = [
     'superadmin' => ['label' => 'Super Admin', 'desc' => 'Admin dashboard + manage users'],
@@ -324,6 +373,12 @@ $roleLabels = [
         <?php if ($message): ?>
             <div class="pu-alert pu-alert-<?= $messageType ?>" role="alert">
                 <?= htmlspecialchars($message) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!$aclWritable): ?>
+            <div class="pu-alert pu-alert-error" role="alert">
+                <strong>Server File Permission Notice:</strong> <code>allowed_users.txt</code> is not currently writable by the web server. Please verify write permissions (<code>chmod 666</code>) on the server to save changes.
             </div>
         <?php endif; ?>
 
