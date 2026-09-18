@@ -156,6 +156,32 @@ if (file_exists($checkinLog)) {
     }
 }
 
+// 1.7 Historical Archive Files (Monthly Rotation Files)
+$archiveFiles = glob($archiveDir . '/checkin_*.json');
+$unwritableArchives = [];
+$unreadableArchives = [];
+foreach ($archiveFiles as $af) {
+    if (!is_readable($af)) {
+        $unreadableArchives[] = basename($af);
+    }
+    if (!is_writable($af)) {
+        $unwritableArchives[] = basename($af);
+    }
+}
+
+if (count($archiveFiles) > 0) {
+    if (empty($unwritableArchives) && empty($unreadableArchives)) {
+        reportPass("All " . count($archiveFiles) . " monthly archive files in logs/archives/ are readable and writable (ready for rotation & reports)");
+    } else {
+        $details = [];
+        if (!empty($unreadableArchives)) $details[] = "Unreadable: " . implode(', ', $unreadableArchives);
+        if (!empty($unwritableArchives)) $details[] = "Unwritable: " . implode(', ', $unwritableArchives);
+        reportFail("Some monthly archive files have restrictive permissions", implode('; ', $details));
+    }
+} else {
+    reportPass("No historical archive files found in logs/archives/ (directory is ready for first rotation)");
+}
+
 // ============================================================================
 // SUITE 2: Fail-Safe Logging & Error Suppression Tests
 // ============================================================================
@@ -246,6 +272,15 @@ if ($badWriteRes === false && !$unwritableWarning && empty($badLeakedOutput)) {
     reportPass("Writing to restricted path fails gracefully with zero screen leakage");
 } else {
     reportFail("Unwritable path test triggered an unhandled PHP warning or leaked output");
+}
+
+// 2.5 Verify admin.php monthly rotation logic uses error suppression and self-healing chmod
+$adminContent = file_get_contents($rootDir . '/admin.php');
+if (strpos($adminContent, '@file_put_contents($archiveFile') !== false &&
+    strpos($adminContent, '@chmod($archiveFile, 0666)') !== false) {
+    reportPass("admin.php monthly archive rotation enforces 0666 permissions and error suppression");
+} else {
+    reportFail("admin.php does not enforce 0666 or error suppression during monthly rotation");
 }
 
 // ============================================================================

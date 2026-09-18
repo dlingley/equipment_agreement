@@ -79,14 +79,14 @@ function rotateCheckinLogIfNeeded($config) {
         return false;
     }
     if (!is_dir($archiveDir)) {
-        if (!mkdir($archiveDir, 0775, true)) {
+        if (!@mkdir($archiveDir, 0777, true)) {
             error_log("LOG ROTATION (CHECKIN) FAILED: Could not create archive directory at $archiveDir");
             return false;
         }
-        @chmod($archiveDir, 0775);
+        @chmod($archiveDir, 0777);
     }
     if (!is_writable($archiveDir)) {
-        @chmod($archiveDir, 0775);
+        @chmod($archiveDir, 0777);
         if (!is_writable($archiveDir)) {
             error_log("LOG ROTATION (CHECKIN) FAILED: Archive directory $archiveDir is not writable");
             return false;
@@ -119,6 +119,9 @@ function rotateCheckinLogIfNeeded($config) {
     foreach ($entriesByMonth as $month => $entries) {
         if ($month === $currentMonthKey) continue;
         $archiveFile = $archiveDir . '/checkin_' . $month . '.json';
+        if (file_exists($archiveFile) && !is_writable($archiveFile)) {
+            @chmod($archiveFile, 0666);
+        }
         
         $contentToAppend = implode('', $entries);
         $bytesWritten = @file_put_contents($archiveFile, $contentToAppend, FILE_APPEND | LOCK_EX);
@@ -146,7 +149,7 @@ function rotateCheckinLogIfNeeded($config) {
         }
     }
 
-    if (file_put_contents($checkInLog, implode('', $remainingEntries), LOCK_EX) !== false) {
+    if (@file_put_contents($checkInLog, implode('', $remainingEntries), LOCK_EX) !== false) {
         @chmod($checkInLog, 0666);
         error_log("Checkin log rotation completed. Retained " . count($remainingEntries) . " entries in main log.");
         return empty($failedMonths);
@@ -169,14 +172,17 @@ function rotateDebugLogIfNeeded($config) {
     if (filesize($debugLogFile) > $maxSizeBytes) {
         error_log("Debug log exceeds {$maxSizeMb}MB. Starting rotation.");
         if (!is_dir($archiveDir)) {
-            if (!mkdir($archiveDir, 0775, true)) {
+            if (!@mkdir($archiveDir, 0777, true)) {
                 error_log("LOG ROTATION (DEBUG) FAILED: Could not create archive directory at $archiveDir");
                 return false;
             }
+            @chmod($archiveDir, 0777);
         }
         $archiveFile = $archiveDir . '/debug_log_' . date('Y-m-d_His') . '.txt';
-        if (copy($debugLogFile, $archiveFile)) {
-            file_put_contents($debugLogFile, '');
+        if (@copy($debugLogFile, $archiveFile)) {
+            @chmod($archiveFile, 0666);
+            @file_put_contents($debugLogFile, '');
+            @chmod($debugLogFile, 0666);
             error_log("Debug log successfully archived to $archiveFile and truncated.");
         } else {
             error_log("LOG ROTATION (DEBUG) FAILED: Could not copy log to archive.");
@@ -197,7 +203,7 @@ function cleanupOldDebugArchives($config) {
     $retentionLimit = time() - ($retentionDays * 24 * 60 * 60);
     foreach (glob($archiveDir . '/debug_log_*.txt') as $file) {
         if (filemtime($file) < $retentionLimit) {
-            unlink($file);
+            @unlink($file);
         }
     }
 }
@@ -392,13 +398,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $currentMonthKey = date('Y_m');
 
         // Write current month's entries to the main log
-        file_put_contents($checkInLogFile, implode('', $entriesByMonth[$currentMonthKey] ?? []));
+        @file_put_contents($checkInLogFile, implode('', $entriesByMonth[$currentMonthKey] ?? []), LOCK_EX);
+        @chmod($checkInLogFile, 0666);
         unset($entriesByMonth[$currentMonthKey]);
 
         // Write all other months to their respective archives
         foreach($entriesByMonth as $month => $lines) {
             $archiveFile = $archiveDir . '/checkin_' . $month . '.json';
-            file_put_contents($archiveFile, implode('', $lines));
+            if (file_exists($archiveFile) && !is_writable($archiveFile)) {
+                @chmod($archiveFile, 0666);
+            }
+            @file_put_contents($archiveFile, implode('', $lines), LOCK_EX);
+            @chmod($archiveFile, 0666);
         }
         return true;
     }
