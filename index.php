@@ -37,11 +37,12 @@ $_SESSION['user_type'] = $authUser->isAdmin() ? 'admin' : 'user';
 $_SESSION['last_activity'] = time();
 
 // ===== Error Reporting Configuration =====
-// Enable all types of error reporting for debugging purposes
-// This helps developers see any PHP errors that occur
+// Log errors to server log; suppress displaying raw errors to public kiosk patrons
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+$debugMode = (isset($_GET['debug']) && $_GET['debug'] === '1');
+ini_set('display_errors', $debugMode ? 1 : 0);
+ini_set('display_startup_errors', $debugMode ? 1 : 0);
+ini_set('log_errors', 1);
 
 // ===== POSIX Function Compatibility =====
 // These functions provide fallbacks for systems that don't have POSIX functions

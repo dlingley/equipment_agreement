@@ -24,10 +24,46 @@ if ($authGuardLoaded) {
     session_start();
 }
 
-// Enable comprehensive error reporting for debugging
+// ===== Error Reporting Configuration =====
+// Log all errors to server log; suppress displaying raw errors to public kiosk patrons
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+$debugMode = (isset($_GET['debug']) && $_GET['debug'] === '1');
+ini_set('display_errors', $debugMode ? 1 : 0);
+ini_set('display_startup_errors', $debugMode ? 1 : 0);
+ini_set('log_errors', 1);
+
+// ===== Configuration Loading =====
+$config = include('config.php');
+
+if (!isset($config['ALMA_API_KEY'])) {
+    die('API key not set in config.php.');
+}
+
+/**
+ * Writes debug messages to a log file safely without leaking warnings or crashing
+ * @param string $message The message to log
+ * @param string $level The log level (INFO, ERROR, etc.)
+ */
+function debugLog($message, $level = 'INFO') {
+    global $config;
+    $tz = $config['TIMEZONE'] ?? 'America/Indianapolis';
+    date_default_timezone_set($tz);
+    $logPathRel = $config['LOG_PATHS']['DEBUG'] ?? 'logs/debug.log';
+    $logFile = dirname(__FILE__) . '/' . $logPathRel;
+    $timestamp = date('Y-m-d H:i:s');
+    $logMessage = "[$timestamp] [$level] $message\n";
+
+    $logDir = dirname($logFile);
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0777, true);
+    }
+
+    $written = @file_put_contents($logFile, $logMessage, FILE_APPEND | LOCK_EX);
+    if ($written === false) {
+        // Graceful fallback to PHP native error log so errors are recorded without breaking page
+        @error_log("Equipment Agreement [$level]: $message");
+    }
+}
 
 // ===== Authentication Check =====
 if (!isset($_SESSION['purdueid'])) {
@@ -37,28 +73,7 @@ if (!isset($_SESSION['purdueid'])) {
     exit();
 }
 
-// ===== Configuration Loading =====
-$config = include('config.php');
-
-if (!isset($config['ALMA_API_KEY'])) {
-    die('API key not set in config.php.');
-}
-
 $purdueId = $_SESSION['purdueid'];
-
-/**
- * Writes debug messages to a log file
- * @param string $message The message to log
- * @param string $level The log level (INFO, ERROR, etc.)
- */
-function debugLog($message, $level = 'INFO') {
-    global $config;
-    date_default_timezone_set($config['TIMEZONE']);
-    $logFile = dirname(__FILE__) . '/' . $config['LOG_PATHS']['DEBUG'];
-    $timestamp = date('Y-m-d H:i:s');
-    $logMessage = "[$timestamp] [$level] $message\n";
-    file_put_contents($logFile, $logMessage, FILE_APPEND);
-}
 
 /**
  * Sends a confirmation email to the user after agreement is signed
@@ -307,7 +322,14 @@ function pushUserNoteAndCheckAgreement($purdueId_input, $config) {
             'campusCode' => $campusCode, 'userStatus' => $userStatus,
             'visitCount' => $visitCount, 'agreementStatus' => $agreementStatus
         ];
-        file_put_contents($checkInLogFile, json_encode($logData) . "\n", FILE_APPEND);
+        $checkInDir = dirname($checkInLogFile);
+        if (!is_dir($checkInDir)) {
+            @mkdir($checkInDir, 0777, true);
+        }
+        $checkInRes = @file_put_contents($checkInLogFile, json_encode($logData) . "\n", FILE_APPEND | LOCK_EX);
+        if ($checkInRes === false) {
+            @error_log("Equipment Agreement ERROR: Could not append check-in log to $checkInLogFile for user $purdueId_official");
+        }
         debugLog("Logged JSON check-in: " . json_encode($logData));
         return true;
     };
