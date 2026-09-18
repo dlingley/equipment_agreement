@@ -72,15 +72,24 @@ return [
     'SESSION_CONFIG' => [
         'TIMEOUT' => 43200, // 12 hours
         'SAVE_PATH' => '/var/tmp/equipment_agreement_sessions'
-    ],
-
-    // Admin & Kiosk Auth Credentials
-    'ADMIN_USERNAME' => 'equipmentadmin',
-    'ADMIN_PASSWORD' => '...',
-    'USER_USERNAME' => 'equipuser',
-    'USER_PASSWORD' => '...'
+    ]
 ];
 ```
+
+### Access Control (`allowed_users.txt`)
+
+Access is authenticated via Purdue SAML Single Sign-On (Auth Hub) and authorized using [allowed_users.txt](file:///Volumes/alma$/equipment_agreement/allowed_users.txt):
+
+```text
+# Format: purdue_username[:superadmin|:admin|:user]
+dlingley:superadmin
+lampley:superadmin
+amaybee:user
+```
+
+- **`superadmin` / `admin`**: Full access to the administrative dashboard (`admin.php`), log management, analytics, and check-in kiosk.
+- **`user`**: Authorized staff access to unlock the public check-in kiosk (`index.php`). The kiosk automatically hides all admin tools from patrons.
+- **Kiosk Longevity**: Session heartbeat (`session.js` & `keepalive.php`) keeps kiosk stations active continuously for > 8 hours.
 
 ---
 

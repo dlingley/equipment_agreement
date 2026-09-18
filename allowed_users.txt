@@ -1,0 +1,10 @@
+# Knowledge Lab Equipment Agreement — Access Control
+# Format: purdue_username[:superadmin|:admin|:user]
+# superadmin — can access admin dashboard & manage users
+# admin      — can access admin dashboard & reports
+# user       — can unlock kiosk check-in screen (read-only for patrons)
+# Lines starting with # are comments.
+
+dlingley:superadmin
+lampley:superadmin
+paswanso:superadmin

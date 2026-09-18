@@ -33,30 +33,30 @@ try {
     // Handle session keepalive requests
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
-            // Start or resume session
-            if (session_status() === PHP_SESSION_NONE) {
-                // Set session configuration using loaded config values first
-                if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
-                    if (!file_exists($config['SESSION_CONFIG']['SAVE_PATH'])) {
-                        @mkdir($config['SESSION_CONFIG']['SAVE_PATH'], 0700, true);
-                    }
-                    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
-                }
+            $authGuardPath = __DIR__ . '/../auth/auth_guard.php';
+            if (!file_exists($authGuardPath)) {
+                $authGuardPath = '/var/www/html/webapps/alma/auth/auth_guard.php';
+            }
+
+            if (!empty($config['SESSION_CONFIG']['TIMEOUT'])) {
                 ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
-                session_set_cookie_params([
-                    'lifetime' => $config['SESSION_CONFIG']['TIMEOUT'],
-                    'secure' => $config['SESSION_CONFIG']['SECURE'],
-                    'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY'],
-                    'samesite' => 'Strict'
-                ]);
+            }
+
+            if (file_exists($authGuardPath)) {
+                require_once $authGuardPath;
+                auth_start_session();
+            } else {
                 session_start();
             }
 
-            // Log session status
-            error_log('Session status: ' . print_r($_SESSION, true));
-        
-            // Verify user is logged in
-            if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+            // Verify user is logged in via Auth Hub or session
+            $authUser = function_exists('auth_user_from_session') 
+                ? auth_user_from_session(['allowed_users_file' => __DIR__ . '/allowed_users.txt'])
+                : null;
+
+            $isLoggedIn = ($authUser !== null) || (!empty($_SESSION['logged_in']) && $_SESSION['logged_in'] === true);
+
+            if (!$isLoggedIn) {
                 http_response_code(401);
                 echo json_encode([
                     'status' => 'error',
@@ -65,32 +65,13 @@ try {
                 exit();
             }
 
-            // Verify session is not expired
-            if (isset($_SESSION['last_activity']) &&
-                (time() - $_SESSION['last_activity']) > $config['SESSION_CONFIG']['TIMEOUT']) {
-                // Session expired, destroy and return unauthorized
-                session_destroy();
-                http_response_code(401);
-                echo json_encode([
-                    'status' => 'error',
-                    'message' => 'Session expired due to inactivity'
-                ]);
-                exit();
-            }
-
             // Update last activity time
             $_SESSION['last_activity'] = time();
-
-            // Regenerate session ID periodically to prevent fixation
-            if (!isset($_SESSION['last_regeneration']) || 
-                (time() - $_SESSION['last_regeneration']) > 3600) {
-                session_regenerate_id(true);
-                $_SESSION['last_regeneration'] = time();
-            }
 
             // Return success response
             echo json_encode([
                 'status' => 'success',
+                'user' => $authUser ? $authUser->username : ($_SESSION['username'] ?? ''),
                 'timestamp' => time()
             ]);
             exit();

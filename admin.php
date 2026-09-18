@@ -1,58 +1,52 @@
 <?php
-// ===== Session Management and Authentication =====
+// ===== Centralized Authentication (Auth Hub) =====
 $config = include('config.php');
+date_default_timezone_set($config['TIMEZONE'] ?? 'America/Indianapolis');
 
-// Set session configuration using loaded config values
-if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
-    if (!file_exists($config['SESSION_CONFIG']['SAVE_PATH'])) {
-        @mkdir($config['SESSION_CONFIG']['SAVE_PATH'], 0700, true);
-    }
-    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
+if (!empty($config['SESSION_CONFIG']['TIMEOUT'])) {
+    ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
 }
-ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
-session_set_cookie_params([
-    'lifetime' => $config['SESSION_CONFIG']['TIMEOUT'],
-    'secure' => $config['SESSION_CONFIG']['SECURE'],
-    'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY'],
-    'samesite' => 'Strict'
+
+$possibleGuards = [
+    __DIR__ . '/../auth/auth_guard.php',
+    '/var/www/html/webapps/alma/auth/auth_guard.php',
+    '/Volumes/alma$/auth/auth_guard.php',
+];
+
+$authGuardLoaded = false;
+foreach ($possibleGuards as $guardPath) {
+    if (file_exists($guardPath)) {
+        require_once $guardPath;
+        $authGuardLoaded = true;
+        break;
+    }
+}
+
+if (!$authGuardLoaded) {
+    die('Error: Centralized Auth Hub (auth_guard.php) could not be loaded.');
+}
+
+// Enforce admin privileges using allowed_users.txt
+$authUser = require_auth([
+    'allowed_users_file' => __DIR__ . '/allowed_users.txt',
+    'require_admin'      => true,
 ]);
 
-session_start();
+// Sync session variables for internal operations and CSRF
+$_SESSION['logged_in'] = true;
+$_SESSION['username']  = $authUser->username;
+$_SESSION['user_type'] = 'admin';
+$_SESSION['last_activity'] = time();
 
 // Generate CSRF token if not present in session
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// ===== Session Timeout Check =====
-// Check BEFORE updating last_activity, otherwise the check can never trigger
-if (isset($_SESSION['last_activity']) &&
-    (time() - $_SESSION['last_activity']) > $config['SESSION_CONFIG']['TIMEOUT']) {
-    // Session expired, destroy and redirect to login
-    session_destroy();
-    header('Location: login.php?timeout=1');
-    exit();
-}
-
-// Update session activity (after timeout check)
-$_SESSION['last_activity'] = time();
-
-// Regenerate session ID periodically to prevent fixation
-if (!isset($_SESSION['last_regeneration']) || (time() - $_SESSION['last_regeneration']) > 3600) {
-    session_regenerate_id(true);
-    $_SESSION['last_regeneration'] = time();
-}
-
-// Verify user is logged in and has admin privileges
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
-    header('Location: login.php');
-    exit();
-}
-
 // Handle logout request
 if (isset($_GET['logout'])) {
-    session_destroy();
-    header('Location: login.php');
+    auth_destroy_session();
+    header('Location: /alma/auth/logout.php');
     exit();
 }
 
@@ -842,8 +836,10 @@ $uniqueCount = count($uniqueVisitors);
         <img src="LSIS_H-Full-RGB_1.jpg" alt="Purdue Libraries Logo" class="logo">
         <h1>Admin Panel</h1>
         <div class="header-buttons">
+            <span style="color: #fff; margin-right: 1rem; font-size: 0.95rem; align-self: center;">Logged in as: <strong><?php echo htmlspecialchars($authUser->displayName ?: $authUser->username); ?></strong> (<?php echo htmlspecialchars(ucfirst($authUser->role)); ?>)</span>
+            <a href="users.php" class="button">Manage Users</a>
             <a href="index.php" class="button">Back to Homepage</a>
-            <a href="?logout=1" class="button">Logout</a>
+            <a href="logout.php" class="button">Logout</a>
         </div>
     </div>
 

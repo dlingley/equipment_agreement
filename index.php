@@ -1,61 +1,40 @@
 <?php
-// ===== Session Management =====
-// Load configuration
+// ===== Centralized Authentication (Auth Hub) =====
 $config = include('config.php');
-
-// Configure session parameters
-if (!empty($config['SESSION_CONFIG']['SAVE_PATH'])) {
-    if (!file_exists($config['SESSION_CONFIG']['SAVE_PATH'])) {
-        @mkdir($config['SESSION_CONFIG']['SAVE_PATH'], 0700, true);
-    }
-    ini_set('session.save_path', $config['SESSION_CONFIG']['SAVE_PATH']);
-}
-ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
-ini_set('session.gc_probability', 1);
-ini_set('session.gc_divisor', 100);
-
-// Set session cookie parameters
-session_set_cookie_params([
-    'lifetime' => $config['SESSION_CONFIG']['COOKIE_LIFETIME'],
-    'path' => '/',
-    'secure' => $config['SESSION_CONFIG']['SECURE'],
-    'httponly' => $config['SESSION_CONFIG']['HTTP_ONLY'],
-    'samesite' => 'Strict'
-]);
-
-// Set timezone
 date_default_timezone_set($config['TIMEZONE']);
 
-// Start a new session or resume an existing one
-session_start();
+// Extend PHP session gc_maxlifetime so the kiosk session is never cleaned up by GC during shifts
+if (!empty($config['SESSION_CONFIG']['TIMEOUT'])) {
+    ini_set('session.gc_maxlifetime', $config['SESSION_CONFIG']['TIMEOUT']);
+}
 
-// Update session activity
+$possibleGuards = [
+    __DIR__ . '/../auth/auth_guard.php',
+    '/var/www/html/webapps/alma/auth/auth_guard.php',
+    '/Volumes/alma$/auth/auth_guard.php',
+];
+
+$authGuardLoaded = false;
+foreach ($possibleGuards as $guardPath) {
+    if (file_exists($guardPath)) {
+        require_once $guardPath;
+        $authGuardLoaded = true;
+        break;
+    }
+}
+
+if (!$authGuardLoaded) {
+    die('Error: Centralized Auth Hub (auth_guard.php) could not be loaded.');
+}
+
+// Require authentication via Purdue SSO & allowed_users.txt
+$authUser = require_auth(['allowed_users_file' => __DIR__ . '/allowed_users.txt']);
+
+// Sync session variables for downstream compatibility
+$_SESSION['logged_in'] = true;
+$_SESSION['username'] = $authUser->username;
+$_SESSION['user_type'] = $authUser->isAdmin() ? 'admin' : 'user';
 $_SESSION['last_activity'] = time();
-
-// Regenerate session ID periodically
-if (!isset($_SESSION['last_regeneration']) || 
-    (time() - $_SESSION['last_regeneration']) > 3600) {
-    session_regenerate_id(true);
-    $_SESSION['last_regeneration'] = time();
-}
-
-// ===== Authentication Check =====
-// Check if the user is logged in by verifying session variables
-// If not logged in, redirect them to the login page for security
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header('Location: login.php');
-    exit();
-}
-
-// ===== Session Timeout Check =====
-// Check if the session has expired due to inactivity
-if (isset($_SESSION['last_activity']) &&
-    (time() - $_SESSION['last_activity']) > $config['SESSION_CONFIG']['TIMEOUT']) {
-    // Session expired, destroy and redirect to login
-    session_destroy();
-    header('Location: login.php?timeout=1');
-    exit();
-}
 
 // ===== Error Reporting Configuration =====
 // Enable all types of error reporting for debugging purposes
@@ -339,12 +318,6 @@ endif;
     <div class="header">
         <img src="LSIS_H-Full-RGB_1.jpg" alt="Purdue Libraries Logo" class="logo">
         <h1>Purdue Libraries Knowledge Lab User Agreement</h1>
-        <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'admin'): ?>
-        <div class="header-buttons">
-            <a href="admin.php" class="button">Admin Page</a>
-            <a href="logout.php" class="button">Logout</a>
-        </div>
-        <?php endif; ?>
     </div>
 
     <?php if ($error): ?>
