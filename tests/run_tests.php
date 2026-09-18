@@ -182,6 +182,52 @@ if (count($archiveFiles) > 0) {
     reportPass("No historical archive files found in logs/archives/ (directory is ready for first rotation)");
 }
 
+// 1.8 logs/user_management.log (Superadmin Audit Trail)
+$auditLog = $rootDir . '/logs/user_management.log';
+if (file_exists($auditLog)) {
+    if (is_writable($auditLog)) {
+        reportPass("logs/user_management.log is writable for security audit logging");
+    } else {
+        reportFail("logs/user_management.log lacks write permissions", "Run: sudo chmod 666 $auditLog");
+    }
+} else {
+    if (@touch($auditLog) && @chmod($auditLog, 0666)) {
+        reportPass("logs/user_management.log initialized and writable");
+    } else {
+        reportWarn("logs/user_management.log not found (will be created on first user edit)");
+    }
+}
+
+// 1.9 Static Web Assets (CSS, JS, Logos)
+$staticAssets = ['styles.css', 'session.js', 'LSIS_H-Full-RGB_1.jpg'];
+$unreadableAssets = [];
+foreach ($staticAssets as $asset) {
+    $assetPath = $rootDir . '/' . $asset;
+    if (!file_exists($assetPath) || !is_readable($assetPath)) {
+        $unreadableAssets[] = $asset;
+    }
+}
+if (empty($unreadableAssets)) {
+    reportPass("All static assets (styles.css, session.js, logo) are present and readable by web server");
+} else {
+    reportFail("Some static web assets are missing or unreadable", implode(', ', $unreadableAssets));
+}
+
+// 1.10 External Dependencies (Auth Hub & Composer Vendor)
+$authGuardPath = dirname($rootDir) . '/auth/auth_guard.php';
+if (file_exists($authGuardPath) && is_readable($authGuardPath)) {
+    reportPass("Centralized Auth Hub (auth/auth_guard.php) is readable");
+} else {
+    reportWarn("Centralized Auth Hub not found at $authGuardPath (check relative path)");
+}
+
+$vendorAutoload = dirname($rootDir) . '/vendor/autoload.php';
+if (file_exists($vendorAutoload) && is_readable($vendorAutoload)) {
+    reportPass("Composer vendor autoload (PHPMailer) is readable for patron emails");
+} else {
+    reportWarn("Composer vendor/autoload.php not accessible at $vendorAutoload (confirmation emails will be skipped)");
+}
+
 // ============================================================================
 // SUITE 2: Fail-Safe Logging & Error Suppression Tests
 // ============================================================================
