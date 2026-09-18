@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Purdue Libraries Knowledge Lab Equipment Agreement Architecture",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1280,
+      580
+    ],
+    "views": [
+      {
+        "id": "patron-flow",
+        "label": "Kiosk check-in & agreement signing",
+        "focus": [
+          "patron_kiosk",
+          "kiosk_keepalive",
+          "agreement_core",
+          "alma_api",
+          "patron_email",
+          "log_engine"
+        ],
+        "note": "Front desk self-service check-in with Alma patron verification, agreement signing, and confirmation receipt."
+      },
+      {
+        "id": "admin-flow",
+        "label": "Staff administration & analytics",
+        "focus": [
+          "admin_portal",
+          "user_manager",
+          "auth_hub",
+          "acl_guard",
+          "log_engine"
+        ],
+        "note": "Staff portal providing usage analytics, visit heatmaps, log rotation, and user provisioning."
+      },
+      {
+        "id": "auth-security",
+        "label": "SAML SSO & Role-Based Access Control",
+        "focus": [
+          "auth_hub",
+          "acl_guard",
+          "user_manager",
+          "admin_portal"
+        ],
+        "note": "Centralized BoilerKey SAML SSO integration with three-tier authorization (superadmin, admin, user)."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "patron_kiosk",
+      "type": "frontend",
+      "label": "Public Kiosk Station",
+      "sublabel": "index.php & confirm.php",
+      "pos": [
+        50,
+        190
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "Patron Facing"
+    },
+    {
+      "id": "kiosk_keepalive",
+      "type": "security",
+      "label": "Session Keepalive",
+      "sublabel": "session.js & keepalive.php",
+      "pos": [
+        50,
+        60
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "12hr Persistence"
+    },
+    {
+      "id": "agreement_core",
+      "type": "backend",
+      "label": "Agreement Engine",
+      "sublabel": "Validation & Workflow",
+      "pos": [
+        310,
+        190
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "Visit Workflow"
+    },
+    {
+      "id": "auth_hub",
+      "type": "security",
+      "label": "Auth Hub (SAML SSO)",
+      "sublabel": "/alma/auth/auth_guard.php",
+      "pos": [
+        310,
+        60
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "BoilerKey Auth"
+    },
+    {
+      "id": "acl_guard",
+      "type": "security",
+      "label": "Role-Based ACL",
+      "sublabel": "allowed_users.txt (0666)",
+      "pos": [
+        580,
+        60
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "RBAC Guard"
+    },
+    {
+      "id": "user_manager",
+      "type": "frontend",
+      "label": "User Access Manager",
+      "sublabel": "users.php (Superadmin)",
+      "pos": [
+        850,
+        60
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "Staff Accounts"
+    },
+    {
+      "id": "admin_portal",
+      "type": "frontend",
+      "label": "Admin Analytics Portal",
+      "sublabel": "admin.php & logviewer.php",
+      "pos": [
+        580,
+        190
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "Chart.js & Stats"
+    },
+    {
+      "id": "alma_api",
+      "type": "cloud",
+      "label": "Ex Libris Alma Cloud",
+      "sublabel": "/almaws/v1/users REST API",
+      "pos": [
+        310,
+        340
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "Patron Notes & API"
+    },
+    {
+      "id": "log_engine",
+      "type": "database",
+      "label": "Daily Logs & Analytics",
+      "sublabel": "checkin_YY-MM-DD.log",
+      "pos": [
+        580,
+        340
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "Auto Rotation"
+    },
+    {
+      "id": "patron_email",
+      "type": "external",
+      "label": "Purdue SMTP Mailer",
+      "sublabel": "mail() confirmation receipt",
+      "pos": [
+        50,
+        340
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "Email Receipt"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Webapps Host (webapps.lib.purdue.edu)",
+      "wraps": [
+        "patron_kiosk",
+        "kiosk_keepalive",
+        "agreement_core",
+        "auth_hub",
+        "acl_guard",
+        "user_manager",
+        "admin_portal",
+        "log_engine"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Campus & Cloud Infrastructure",
+      "wraps": [
+        "alma_api",
+        "patron_email"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c-kiosk-keepalive",
+      "from": "patron_kiosk",
+      "to": "kiosk_keepalive",
+      "label": "heartbeat ping",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "c-kiosk-core",
+      "from": "patron_kiosk",
+      "to": "agreement_core",
+      "label": "submit agreement",
+      "variant": "emphasis"
+    },
+    {
+      "id": "c-core-alma",
+      "from": "agreement_core",
+      "to": "alma_api",
+      "label": "read/write user notes",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "c-core-email",
+      "from": "agreement_core",
+      "to": "patron_email",
+      "label": "send confirmation",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "c-core-log",
+      "from": "agreement_core",
+      "to": "log_engine",
+      "label": "record visit log"
+    },
+    {
+      "id": "c-admin-auth",
+      "from": "admin_portal",
+      "to": "auth_hub",
+      "label": "verify session",
+      "fromSide": "top",
+      "toSide": "right"
+    },
+    {
+      "id": "c-auth-acl",
+      "from": "auth_hub",
+      "to": "acl_guard",
+      "label": "lookup role"
+    },
+    {
+      "id": "c-acl-users",
+      "from": "acl_guard",
+      "to": "user_manager",
+      "label": "authorize superadmin"
+    },
+    {
+      "id": "c-admin-log",
+      "from": "admin_portal",
+      "to": "log_engine",
+      "label": "parse analytics & rotation",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Public Kiosk & Self Check-in",
+      "items": [
+        "Dedicated kiosk interface with sanitized header hiding administrative tools from patrons",
+        "12-hour session persistence powered by session.js visibility handlers and keepalive.php pings",
+        "Collects patron Purdue ID/username and digital signature agreement"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Alma Cloud Integration & Messaging",
+      "items": [
+        "Queries Alma User REST API to verify patron active status and existing agreement notes",
+        "Appends standardized equipment agreement note to patron record upon first completion",
+        "Dispatches automated email confirmation receipts to patron campus inboxes"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Enterprise SAML SSO & RBAC",
+      "items": [
+        "Integrated with central Purdue Auth Hub (/alma/auth/auth_guard.php) via BoilerKey SAML",
+        "Three-tier role-based access control (superadmin, admin, user) defined in allowed_users.txt",
+        "Super Admin User Access Manager (users.php) for live staff provisioning and role updates"
+      ]
+    }
+  ]
+}

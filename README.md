@@ -4,6 +4,15 @@ A PHP and Python application for managing equipment checkout agreements at the P
 
 ---
 
+## Architecture & System Diagrams
+
+| Diagram Type | Format | Links | Summary |
+| :--- | :--- | :--- | :--- |
+| **System Architecture** | Archify Interactive HTML | [Interactive Diagram](docs/diagrams/equipment-agreement-architecture.html) · [Specification](docs/diagrams/equipment-agreement-architecture.json) | End-to-end component model mapping public kiosk, session keepalive, agreement engine, Alma REST API, SMTP mailer, Purdue SAML SSO, and Super Admin user access manager. |
+| **Code Knowledge Graph** | Graphify Knowledge Graph | [Interactive Graph](graphify-out/graph.html) · [Audit Report](graphify-out/GRAPH_REPORT.md) | Graph representation of 97 nodes, 123 edges, and 18 clustered subsystems detailing AST structures and semantic workflows. |
+
+---
+
 ## Features
 
 - **User Agreement Flow (`index.php`, `confirm.php`)**:

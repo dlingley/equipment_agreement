@@ -1,0 +1,107 @@
+{
+  "admin.php": {
+    "mtime": 1789736862.8106859,
+    "ast_hash": "5adcffd4c0124868903347605e05a379",
+    "semantic_hash": "5adcffd4c0124868903347605e05a379"
+  },
+  "cleanup_and_recount.php": {
+    "mtime": 1789736862.810894,
+    "ast_hash": "a47175d10f1022b59a7630f7d27cd958",
+    "semantic_hash": "a47175d10f1022b59a7630f7d27cd958"
+  },
+  "compare_logs.py": {
+    "mtime": 1789736862.8113797,
+    "ast_hash": "8401fdf7cac78cf4698b8071c7014e7a",
+    "semantic_hash": "8401fdf7cac78cf4698b8071c7014e7a"
+  },
+  "confirm.php": {
+    "mtime": 1789736862.811535,
+    "ast_hash": "815950dae12ff24bf7e09902bbfe8e63",
+    "semantic_hash": "815950dae12ff24bf7e09902bbfe8e63"
+  },
+  "fix_agreements.py": {
+    "mtime": 1789736862.8116882,
+    "ast_hash": "bd43e668d8a87f82c2f6ba9bd357db27",
+    "semantic_hash": "bd43e668d8a87f82c2f6ba9bd357db27"
+  },
+  "index.php": {
+    "mtime": 1789736862.8121383,
+    "ast_hash": "07e50d71376a865e478f88efb5ca7add",
+    "semantic_hash": "07e50d71376a865e478f88efb5ca7add"
+  },
+  "keepalive.php": {
+    "mtime": 1789736862.812299,
+    "ast_hash": "17c72724f074bd4aa2f73aecd57f98de",
+    "semantic_hash": "17c72724f074bd4aa2f73aecd57f98de"
+  },
+  "login.php": {
+    "mtime": 1789736862.812392,
+    "ast_hash": "c7d77d31a9831ac2a81a1403c25dbb5c",
+    "semantic_hash": "c7d77d31a9831ac2a81a1403c25dbb5c"
+  },
+  "logout.php": {
+    "mtime": 1789736862.8125157,
+    "ast_hash": "d94211994c476f16eebfc6f54d90450f",
+    "semantic_hash": "d94211994c476f16eebfc6f54d90450f"
+  },
+  "recover_checkins.php": {
+    "mtime": 1789736862.8134723,
+    "ast_hash": "bc761f0770e98947c70560b6e89eee11",
+    "semantic_hash": "bc761f0770e98947c70560b6e89eee11"
+  },
+  "recovery_script.py": {
+    "mtime": 1789736862.8136413,
+    "ast_hash": "edfbc5251e1329605927945b328c0c08",
+    "semantic_hash": "edfbc5251e1329605927945b328c0c08"
+  },
+  "session.js": {
+    "mtime": 1789736862.8137307,
+    "ast_hash": "8132f2c9eff7198489a65fb0d92999f7",
+    "semantic_hash": "8132f2c9eff7198489a65fb0d92999f7"
+  },
+  "success.php": {
+    "mtime": 1789736862.8141608,
+    "ast_hash": "6be5c426f9442c15011ef2e7a2bd2b44",
+    "semantic_hash": "6be5c426f9442c15011ef2e7a2bd2b44"
+  },
+  "users.php": {
+    "mtime": 1789736862.8142948,
+    "ast_hash": "c8ef16f3ae6a711becb60941e89ccda6",
+    "semantic_hash": "c8ef16f3ae6a711becb60941e89ccda6"
+  },
+  "validate_note_segments.py": {
+    "mtime": 1789736862.814457,
+    "ast_hash": "3d3de679b72c67ee46cf6adae2b47703",
+    "semantic_hash": "3d3de679b72c67ee46cf6adae2b47703"
+  },
+  "README.md": {
+    "mtime": 1789736862.810472,
+    "ast_hash": "c8ece4d63972ad1bb2fa77bf3f386616",
+    "semantic_hash": "c8ece4d63972ad1bb2fa77bf3f386616"
+  },
+  "allowed_users.txt": {
+    "mtime": 1789736862.8107843,
+    "ast_hash": "9ba81bc531cb7680b1f9f328de0996a3",
+    "semantic_hash": "9ba81bc531cb7680b1f9f328de0996a3"
+  },
+  "cline_docs/codebaseSummary.md": {
+    "mtime": 1789736862.8110514,
+    "ast_hash": "49af708435cce6112dcb2f4bcbc0a354",
+    "semantic_hash": "49af708435cce6112dcb2f4bcbc0a354"
+  },
+  "memory-bank/productContext.md": {
+    "mtime": 1789736862.812971,
+    "ast_hash": "c396d53124bc2d7f4dae0afb0f4e431d",
+    "semantic_hash": "c396d53124bc2d7f4dae0afb0f4e431d"
+  },
+  "memory-bank/systemPatterns.md": {
+    "mtime": 1789736862.8132527,
+    "ast_hash": "96e47961dd75c53a8b149547b1431811",
+    "semantic_hash": "96e47961dd75c53a8b149547b1431811"
+  },
+  "LSIS_H-Full-RGB_1.jpg": {
+    "mtime": 1789736862.8103027,
+    "ast_hash": "c75a991cb31a93db1563b5a4ca4015e3",
+    "semantic_hash": "c75a991cb31a93db1563b5a4ca4015e3"
+  }
+}
