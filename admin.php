@@ -302,7 +302,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'Campus Code',
                 'User Status',
                 'Visit Count',
-                'Agreement Status'
+                'Agreement Status',
+                'Usage Reason'
             ]);
             
             // Add data rows
@@ -317,7 +318,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                     $entry['campusCode'] ?? '',
                     $entry['userStatus'] ?? '',
                     $entry['visitCount'] ?? '',
-                    $entry['agreementStatus'] ?? ''
+                    $entry['agreementStatus'] ?? '',
+                    $entry['usageReason'] ?? ''
                 ]);
             }
             
@@ -454,7 +456,7 @@ function parseLogLine($line) {
     if (empty($line)) return null;
     $data = json_decode($line, true);
     if (is_array($data) && isset($data['purdueId'])) {
-        return ['purdueId' => $data['purdueId'] ?? 'N/A', 'timestamp' => $data['timestamp'] ?? 'N/A', 'fullName' => $data['fullName'] ?? 'N/A', 'userGroup' => $data['userGroup'] ?? 'N/A', 'department' => $data['department'] ?? 'N/A', 'classification' => $data['classification'] ?? 'N/A', 'campusCode' => $data['campusCode'] ?? 'N/A', 'userStatus' => $data['userStatus'] ?? 'N/A', 'visitCount' => $data['visitCount'] ?? 'N/A', 'agreementStatus' => $data['agreementStatus'] ?? 'N/A'];
+        return ['purdueId' => $data['purdueId'] ?? 'N/A', 'timestamp' => $data['timestamp'] ?? 'N/A', 'fullName' => $data['fullName'] ?? 'N/A', 'userGroup' => $data['userGroup'] ?? 'N/A', 'department' => $data['department'] ?? 'N/A', 'classification' => $data['classification'] ?? 'N/A', 'campusCode' => $data['campusCode'] ?? 'N/A', 'userStatus' => $data['userStatus'] ?? 'N/A', 'visitCount' => $data['visitCount'] ?? 'N/A', 'agreementStatus' => $data['agreementStatus'] ?? 'N/A', 'usageReason' => $data['usageReason'] ?? ''];
     }
     return null;
 }
@@ -622,7 +624,7 @@ function processLogForReasonUsage($logFile, $reasonUsage) {
         if ($data === null) continue;
         try { $month = (new DateTime($data['timestamp']))->format('Y-m'); } catch (Exception $e) { continue; }
         if (!isset($reasonUsage[$month])) $reasonUsage[$month] = [];
-        $reason = !empty($data['usageReason']) ? $data['usageReason'] : 'N/A';
+        $reason = !empty($data['usageReason']) ? $data['usageReason'] : 'Not specified';
         $reasonUsage[$month][$reason] = ($reasonUsage[$month][$reason] ?? 0) + 1;
     }
     fclose($handle);
@@ -1120,6 +1122,7 @@ $uniqueCount = count($uniqueVisitors);
                 (e.userGroup || '').toLowerCase().includes(q) ||
                 (e.department || '').toLowerCase().includes(q) ||
                 (e.classification || '').toLowerCase().includes(q) ||
+                (e.usageReason || '').toLowerCase().includes(q) ||
                 (e.timestamp || '').toLowerCase().includes(q) ||
                 (e.purdueId || '').toLowerCase().includes(q)
             );
