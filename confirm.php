@@ -322,15 +322,8 @@ function pushUserNoteAndCheckAgreement($purdueId_input, $config) {
             'campusCode' => $campusCode, 'userStatus' => $userStatus,
             'visitCount' => $visitCount, 'agreementStatus' => $agreementStatus
         ];
-        $checkInDir = dirname($checkInLogFile);
-        if (!is_dir($checkInDir)) {
-            @mkdir($checkInDir, 0777, true);
-        }
-        $checkInRes = @file_put_contents($checkInLogFile, json_encode($logData) . "\n", FILE_APPEND | LOCK_EX);
-        if ($checkInRes === false) {
-            @error_log("Equipment Agreement ERROR: Could not append check-in log to $checkInLogFile for user $purdueId_official");
-        }
-        debugLog("Logged JSON check-in: " . json_encode($logData));
+        $_SESSION['pending_checkin'] = $logData;
+        debugLog("Stored pending check-in for usage prompt: " . json_encode($logData));
         return true;
     };
 
@@ -401,7 +394,7 @@ if (isset($result['error'])) {
 }
 
 if (isset($result['agreement_created']) || isset($result['agreement_exists'])) {
-    header("Location: success.php");
+    header("Location: usage.php");
     exit();
 }
 
