@@ -433,6 +433,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $entry['department'] = trim(strip_tags($_POST['department'] ?? ''));
                 $entry['classification'] = trim(strip_tags($_POST['classification'] ?? ''));
                 $entry['visitCount'] = max(0, intval($_POST['visitCount'] ?? 0));
+                $entry['usageReason'] = trim(strip_tags($_POST['usageReason'] ?? ''));
                 // Add more fields here if you make them editable
                 break;
             }
@@ -600,6 +601,34 @@ function processLogForDeptUsage($logFile, $deptUsage) {
     return $deptUsage;
 }
 
+function getReasonUsageReport($config) {
+    if (!isset($config['LOG_PATHS']['CHECKIN'])) return [];
+    $reasonUsage = [];
+    $checkInLog = dirname(__FILE__) . '/' . $config['LOG_PATHS']['CHECKIN'];
+    $reasonUsage = processLogForReasonUsage($checkInLog, $reasonUsage);
+    $archiveDir = dirname($checkInLog) . '/archives';
+    foreach (glob($archiveDir . '/checkin_*.json') as $archiveFile) {
+        $reasonUsage = processLogForReasonUsage($archiveFile, $reasonUsage);
+    }
+    krsort($reasonUsage);
+    return $reasonUsage;
+}
+function processLogForReasonUsage($logFile, $reasonUsage) {
+    if (!is_readable($logFile)) return $reasonUsage;
+    $handle = fopen($logFile, 'r');
+    if (!$handle) return $reasonUsage;
+    while (($line = fgets($handle)) !== false) {
+        $data = parseLogLine($line);
+        if ($data === null) continue;
+        try { $month = (new DateTime($data['timestamp']))->format('Y-m'); } catch (Exception $e) { continue; }
+        if (!isset($reasonUsage[$month])) $reasonUsage[$month] = [];
+        $reason = !empty($data['usageReason']) ? $data['usageReason'] : 'N/A';
+        $reasonUsage[$month][$reason] = ($reasonUsage[$month][$reason] ?? 0) + 1;
+    }
+    fclose($handle);
+    return $reasonUsage;
+}
+
 // ===== Prepare Data for Page Display =====
 // Note: Log entries are now loaded via AJAX (get_log_entries) for performance
 $usageReport = getUsageReport($config);
@@ -616,6 +645,20 @@ foreach ($userGroups as $index => $group) {
     $datasets[] = ['label' => $group, 'data' => $data, 'backgroundColor' => $palette[$index % count($palette)], 'borderWidth' => 1];
 }
 $graphData = ['labels' => $months, 'datasets' => $datasets];
+
+// ===== Prepare Reason Data for Graph =====
+$reasonUsageReport = getReasonUsageReport($config);
+$reasonGroups = [];
+foreach ($reasonUsageReport as $groups) {
+    foreach (array_keys($groups) as $group) { if (!in_array($group, $reasonGroups)) $reasonGroups[] = $group; }
+}
+$reasonDatasets = [];
+foreach ($reasonGroups as $index => $group) {
+    $data = [];
+    foreach ($months as $month) { $data[] = $reasonUsageReport[$month][$group] ?? 0; }
+    $reasonDatasets[] = ['label' => $group, 'data' => $data, 'backgroundColor' => $palette[$index % count($palette)], 'borderWidth' => 1];
+}
+$reasonGraphData = ['labels' => $months, 'datasets' => $reasonDatasets];
 
 // ===== Prepare Department Data for Line Chart =====
 $deptUsageReport = getDepartmentUsageReport($config);
@@ -897,6 +940,7 @@ $uniqueCount = count($uniqueVisitors);
         <div class="graph-tabs">
             <button class="tab-btn active" onclick="switchGraph('userGroup', this)">Check-ins by User Group</button>
             <button class="tab-btn" onclick="switchGraph('department', this)">Check-ins by Department</button>
+            <button class="tab-btn" onclick="switchGraph('usageReason', this)">Check-ins by Usage Reason</button>
             <button class="tab-btn" onclick="switchGraph('yearOverYear', this)">Year-over-Year Trend</button>
         </div>
         <div class="canvas-container">
@@ -908,6 +952,7 @@ $uniqueCount = count($uniqueVisitors);
         <div class="report-tabs">
             <button class="tab-btn active" onclick="switchReport('userGroup', this)">Monthly Usage by User Group</button>
             <button class="tab-btn" onclick="switchReport('department', this)">Monthly Usage by Department</button>
+            <button class="tab-btn" onclick="switchReport('usageReason', this)">Monthly Usage by Reason</button>
             <button class="tab-btn" onclick="switchReport('yearOverYear', this)">Year-over-Year Totals</button>
         </div>
         
@@ -934,6 +979,22 @@ $uniqueCount = count($uniqueVisitors);
                         foreach ($depts as $dept => $count): 
                         ?>
                             <tr><td><?php echo htmlspecialchars($month); ?></td><td><?php echo htmlspecialchars($dept); ?></td><td><?php echo htmlspecialchars($count); ?></td></tr>
+                        <?php endforeach; ?>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="usage-reason-report" class="report-table-container" style="display: none;">
+            <table>
+                <thead><tr><th>Month</th><th>Usage Reason</th><th>Check-ins</th></tr></thead>
+                <tbody>
+                    <?php foreach ($reasonUsageReport as $month => $reasons): ?>
+                        <?php 
+                        arsort($reasons);
+                        foreach ($reasons as $reason => $count): 
+                        ?>
+                            <tr><td><?php echo htmlspecialchars($month); ?></td><td><?php echo htmlspecialchars($reason); ?></td><td><?php echo htmlspecialchars($count); ?></td></tr>
                         <?php endforeach; ?>
                     <?php endforeach; ?>
                 </tbody>
@@ -982,10 +1043,10 @@ $uniqueCount = count($uniqueVisitors);
             </div>
             <table>
                 <thead>
-                    <tr><th>Timestamp</th><th>Full Name</th><th>User Group</th><th>Department</th><th>Classification</th><th>Visit #</th><th>Agreement</th></tr>
+                    <tr><th>Timestamp</th><th>Full Name</th><th>User Group</th><th>Department</th><th>Classification</th><th>Visit #</th><th>Usage Reason</th><th>Agreement</th></tr>
                 </thead>
                 <tbody id="log-viewer-body">
-                    <tr><td colspan="7" style="text-align:center; padding:20px;">Click "View Log" to load entries...</td></tr>
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">Click "View Log" to load entries...</td></tr>
                 </tbody>
             </table>
             <div class="log-pagination" id="log-viewer-pagination"></div>
@@ -998,10 +1059,10 @@ $uniqueCount = count($uniqueVisitors);
             </div>
             <table>
                 <thead>
-                    <tr><th>Timestamp</th><th>Full Name</th><th>User Group</th><th>Department</th><th>Classification</th><th>Visit #</th><th>Actions</th></tr>
+                    <tr><th>Timestamp</th><th>Full Name</th><th>User Group</th><th>Department</th><th>Classification</th><th>Visit #</th><th>Usage Reason</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="log-editor-body">
-                    <tr><td colspan="7" style="text-align:center; padding:20px;">Click "Edit Log" to load entries...</td></tr>
+                    <tr><td colspan="8" style="text-align:center; padding:20px;">Click "Edit Log" to load entries...</td></tr>
                 </tbody>
             </table>
             <div class="log-pagination" id="log-editor-pagination"></div>
@@ -1096,12 +1157,12 @@ $uniqueCount = count($uniqueVisitors);
             document.getElementById('log-viewer-count').textContent = `${viewerState.filtered.length} entries`;
 
             if (pageEntries.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">No entries found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">No entries found.</td></tr>';
             } else {
                 tbody.innerHTML = pageEntries.map(e => `<tr>
                     <td>${esc(e.timestamp)}</td><td>${esc(e.fullName)}</td><td>${esc(e.userGroup)}</td>
                     <td>${esc(e.department)}</td><td>${esc(e.classification)}</td><td>${esc(e.visitCount)}</td>
-                    <td>${esc(e.agreementStatus)}</td>
+                    <td>${esc(e.usageReason || '—')}</td><td>${esc(e.agreementStatus)}</td>
                 </tr>`).join('');
             }
             renderPagination('log-viewer-pagination', viewerState, renderViewerTable);
@@ -1114,12 +1175,13 @@ $uniqueCount = count($uniqueVisitors);
             document.getElementById('log-editor-count').textContent = `${editorState.filtered.length} entries`;
 
             if (pageEntries.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">No entries found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">No entries found.</td></tr>';
             } else {
                 tbody.innerHTML = pageEntries.map(e => `
                     <tr id="view-row-${e.id}">
                         <td>${esc(e.timestamp)}</td><td>${esc(e.fullName)}</td><td>${esc(e.userGroup)}</td>
                         <td>${esc(e.department)}</td><td>${esc(e.classification)}</td><td>${esc(e.visitCount)}</td>
+                        <td>${esc(e.usageReason || '—')}</td>
                         <td class="actions">
                             <button type="button" class="button" onclick="showEditForm(${e.id})">Edit</button>
                             <form method="POST" style="display:inline; margin:0; padding:0;">
@@ -1130,7 +1192,7 @@ $uniqueCount = count($uniqueVisitors);
                         </td>
                     </tr>
                     <tr id="edit-row-${e.id}" class="edit-form">
-                        <td colspan="7">
+                        <td colspan="8">
                             <form method="POST" style="display:inline; margin:0; padding:0;">
                                 <input type="hidden" name="csrf_token" value="${CSRF_TOKEN}">
                                 <input type="hidden" name="entry_id" value="${e.id}">
@@ -1140,6 +1202,7 @@ $uniqueCount = count($uniqueVisitors);
                                 <input type="text" name="department" value="${esc(e.department)}">
                                 <input type="text" name="classification" value="${esc(e.classification)}">
                                 <input type="number" name="visitCount" value="${esc(e.visitCount)}">
+                                <input type="text" name="usageReason" value="${esc(e.usageReason || '')}" placeholder="Usage Reason">
                                 <button type="submit" name="save_entry" value="save" class="button">Save</button>
                                 <button type="button" class="button" onclick="hideEditForm(${e.id})">Cancel</button>
                             </form>
@@ -1357,6 +1420,7 @@ $uniqueCount = count($uniqueVisitors);
         let usageChart = null;
         const userGroupGraphData = <?php echo json_encode($graphData); ?>;
         const departmentGraphData = <?php echo json_encode($deptGraphData); ?>;
+        const reasonGraphData = <?php echo json_encode($reasonGraphData); ?>;
         const yoyGraphData = <?php echo json_encode($yoyGraphData); ?>;
 
         function initializeGraph() {
@@ -1377,6 +1441,24 @@ $uniqueCount = count($uniqueVisitors);
                         responsive: true,
                         plugins: {
                             title: { display: true, text: 'Check-ins by User Group' },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15
+                                }
+                            }
+                        },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            } else if (type === 'usageReason') {
+                usageChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: reasonGraphData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: 'Check-ins by Usage Reason' },
                             legend: {
                                 position: 'bottom',
                                 labels: {
@@ -1461,11 +1543,14 @@ $uniqueCount = count($uniqueVisitors);
 
             document.getElementById('user-group-report').style.display = 'none';
             document.getElementById('department-report').style.display = 'none';
+            document.getElementById('usage-reason-report').style.display = 'none';
             document.getElementById('year-over-year-report').style.display = 'none';
             if (type === 'userGroup') {
                 document.getElementById('user-group-report').style.display = 'block';
             } else if (type === 'department') {
                 document.getElementById('department-report').style.display = 'block';
+            } else if (type === 'usageReason') {
+                document.getElementById('usage-reason-report').style.display = 'block';
             } else if (type === 'yearOverYear') {
                 document.getElementById('year-over-year-report').style.display = 'block';
             }
